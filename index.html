@@ -490,7 +490,8 @@
       .then(items => {
         if (!Array.isArray(items)) return;
         if (!paramV && items.length > 0) {
-          loadVideoItem(items[0].file, items[0].title, items[0].lang);
+          const preferred = items.find(it => it.lang === paramLang) || items[0];
+          loadVideoItem(preferred.file, preferred.title, preferred.lang);
         }
         playlistGrid.innerHTML = "";
         items.forEach(item => {
