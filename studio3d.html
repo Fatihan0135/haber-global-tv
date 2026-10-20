@@ -680,11 +680,46 @@
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.42;
+    if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050811);
-    scene.fog = new THREE.FogExp2(0x050811, 0.012);
+    scene.background = new THREE.Color(0x0c1426);
+    scene.fog = new THREE.FogExp2(0x0c1426, 0.0065);
+
+    // Gerçekçi Stüdyo HDRI Yansıma Haritası (THREE.PMREMGenerator) — Tüm altın, krom, deri, maun ve mermer yüzeyleri parlatır!
+    (function setupStudioHDRI() {
+      try {
+        const envCanvas = document.createElement("canvas");
+        envCanvas.width = 1024; envCanvas.height = 512;
+        const ectx = envCanvas.getContext("2d");
+        const grad = ectx.createLinearGradient(0, 0, 0, 512);
+        grad.addColorStop(0.0, "#ffffff");
+        grad.addColorStop(0.22, "#dbeafe");
+        grad.addColorStop(0.48, "#334155");
+        grad.addColorStop(0.55, "#1e293b");
+        grad.addColorStop(1.0, "#0f172a");
+        ectx.fillStyle = grad;
+        ectx.fillRect(0, 0, 1024, 512);
+        // Stüdyo Softbox & Altın Avize Yansıma Panelleri
+        for (let i = 0; i < 8; i++) {
+          ectx.fillStyle = i % 2 === 0 ? "#fffbeb" : "#e0f2fe";
+          ectx.fillRect(40 + i * 120, 28, 86, 56);
+          ectx.fillStyle = "#fde68a";
+          ectx.fillRect(60 + i * 120, 120, 55, 24);
+        }
+        const envTex = new THREE.CanvasTexture(envCanvas);
+        envTex.mapping = THREE.EquirectangularReflectionMapping;
+        if (THREE.PMREMGenerator) {
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          pmrem.compileEquirectangularShader();
+          scene.environment = pmrem.fromEquirectangular(envTex).texture;
+          pmrem.dispose();
+        } else {
+          scene.environment = envTex;
+        }
+      } catch (e) {}
+    })();
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 160);
     // Başlangıç konumu: Zemin Kat Giriş & Asansör Lobisi
@@ -703,20 +738,19 @@
       ctx.fillStyle = bgHex;
       ctx.fillRect(0, 0, 512, 512);
       ctx.strokeStyle = veinHex;
-      for (let i = 0; i < 28; i++) {
-        ctx.lineWidth = 0.5 + Math.random() * 2.2;
+      for (let i = 0; i < 32; i++) {
+        ctx.lineWidth = 0.6 + Math.random() * 2.4;
         ctx.beginPath();
         let x = Math.random() * 512, y = 0;
         ctx.moveTo(x, y);
         while (y < 512) {
-          y += 24;
-          x += (Math.random() - 0.5) * 36;
+          y += 22;
+          x += (Math.random() - 0.5) * 34;
           ctx.lineTo(x, y);
         }
         ctx.stroke();
       }
-      // Karo derz çizgileri
-      ctx.strokeStyle = "rgba(245,185,20,0.18)";
+      ctx.strokeStyle = "rgba(245,185,20,0.22)";
       ctx.lineWidth = 2;
       ctx.strokeRect(2, 2, 508, 508);
       const tex = new THREE.CanvasTexture(c);
@@ -725,46 +759,188 @@
       return tex;
     }
 
-    function makeSignTexture(title, subtitle, accentColor = "#e51919", bgColor = "#090f1d", width = 1024, height = 256) {
+    function makeWoodTexture(baseHex = "#4a2414", grainHex = "#2a1208") {
+      const c = document.createElement("canvas");
+      c.width = 512; c.height = 512;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = baseHex;
+      ctx.fillRect(0, 0, 512, 512);
+      ctx.strokeStyle = grainHex;
+      for (let i = 0; i < 90; i++) {
+        ctx.lineWidth = 1 + Math.random() * 2.5;
+        ctx.beginPath();
+        const y = (i / 90) * 512;
+        ctx.moveTo(0, y);
+        ctx.bezierCurveTo(170, y + (Math.random() - 0.5) * 14, 340, y + (Math.random() - 0.5) * 14, 512, y);
+        ctx.stroke();
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      return tex;
+    }
+
+    // Otomatik Ölçeklenen Kesintisiz Tabela Dokusu (Asla Kenarlardan Kesilmez!)
+    function makeSignTexture(title, subtitle, accentColor = "#e51919", bgColor = "#091224", width = 1024, height = 256) {
       const c = document.createElement("canvas");
       c.width = width; c.height = height;
       const ctx = c.getContext("2d");
-      ctx.fillStyle = bgColor;
+      const g = ctx.createLinearGradient(0, 0, width, height);
+      g.addColorStop(0, bgColor);
+      g.addColorStop(0.5, "#111f38");
+      g.addColorStop(1, bgColor);
+      ctx.fillStyle = g;
       ctx.fillRect(0, 0, width, height);
       ctx.strokeStyle = "#f5b914";
       ctx.lineWidth = 8;
       ctx.strokeRect(8, 8, width - 16, height - 16);
       ctx.fillStyle = accentColor;
       ctx.fillRect(16, 16, width - 32, 18);
+
+      const maxTextWidth = width - 84;
+      let titleSize = Math.min(48, Math.floor(height * 0.22));
+      ctx.font = `900 ${titleSize}px 'Segoe UI', Arial, sans-serif`;
+      while (ctx.measureText(title).width > maxTextWidth && titleSize > 15) {
+        titleSize -= 2;
+        ctx.font = `900 ${titleSize}px 'Segoe UI', Arial, sans-serif`;
+      }
       ctx.fillStyle = "#ffffff";
-      ctx.font = "900 48px 'Segoe UI', Arial, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(title, width / 2, height * 0.52);
+      ctx.textBaseline = "middle";
+      ctx.fillText(title, width / 2, subtitle ? height * 0.46 : height * 0.55);
+
       if (subtitle) {
+        let subSize = Math.min(28, Math.floor(height * 0.13));
+        ctx.font = `700 ${subSize}px 'Segoe UI', Arial, sans-serif`;
+        while (ctx.measureText(subtitle).width > maxTextWidth && subSize > 12) {
+          subSize -= 1.5;
+          ctx.font = `700 ${subSize}px 'Segoe UI', Arial, sans-serif`;
+        }
         ctx.fillStyle = "#f5b914";
-        ctx.font = "700 28px 'Segoe UI', Arial, sans-serif";
-        ctx.fillText(subtitle, width / 2, height * 0.78);
+        ctx.fillText(subtitle, width / 2, height * 0.77);
       }
       const tex = new THREE.CanvasTexture(c);
       return tex;
     }
 
-    const marbleFloorTex = makeMarbleTexture("#0c1322", "rgba(255,255,255,0.07)", 14, 18);
-    const whiteMarbleTex = makeMarbleTexture("#1a2438", "rgba(245,185,20,0.12)", 6, 6);
+    // 17 Ülke Diplomasi Odası İçin Gerçek Çizimli Taktik Dünya Haritası & Radar Ekranı
+    function makeWorldStrategyMapTexture() {
+      const w = 1600, h = 640;
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
+      const bg = ctx.createRadialGradient(w / 2, h / 2, 60, w / 2, h / 2, w * 0.65);
+      bg.addColorStop(0, "#0b2247");
+      bg.addColorStop(0.6, "#07152e");
+      bg.addColorStop(1, "#040b18");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
 
-    // Ana Materyaller
-    const floorMat = new THREE.MeshStandardMaterial({ map: marbleFloorTex, roughness: 0.18, metalness: 0.35 });
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x11192b, roughness: 0.42, metalness: 0.2 });
-    const darkPanelMat = new THREE.MeshStandardMaterial({ color: 0x090e1a, roughness: 0.3, metalness: 0.5 });
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xf5b914, roughness: 0.22, metalness: 0.88 });
-    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xdbe4f0, roughness: 0.15, metalness: 0.92 });
-    const redGlowMat = new THREE.MeshBasicMaterial({ color: 0xe51919 });
-    const goldGlowMat = new THREE.MeshBasicMaterial({ color: 0xf5b914 });
+      // Enlem-Boylam Taktik Grid Çizgileri
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.16)";
+      ctx.lineWidth = 1.5;
+      for (let x = 80; x < w; x += 80) {
+        ctx.beginPath(); ctx.moveTo(x, 76); ctx.lineTo(x, h - 68); ctx.stroke();
+      }
+      for (let y = 110; y < h - 70; y += 65) {
+        ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 40, y); ctx.stroke();
+      }
+
+      // Stilize Kıta Silüetleri
+      ctx.fillStyle = "rgba(30, 64, 115, 0.75)";
+      ctx.strokeStyle = "rgba(245, 185, 20, 0.55)";
+      ctx.lineWidth = 2.2;
+      const continents = [
+        [[180,160],[360,145],[430,220],[340,310],[230,280]], // Kuzey Amerika (Manitoba / Sonora)
+        [[350,330],[440,350],[420,490],[360,470]],           // Güney Amerika
+        [[690,155],[860,140],[910,235],[820,275],[700,245]], // Avrupa & Kafkasya
+        [[720,290],[860,290],[840,455],[745,440]],           // Afrika
+        [[920,150],[1290,155],[1340,310],[1140,365],[950,290]], // Asya (Borneo / Johor)
+        [[1210,395],[1370,390],[1355,485],[1220,475]]        // Okyanusya
+      ];
+      continents.forEach(poly => {
+        ctx.beginPath();
+        poly.forEach((pt, idx) => idx === 0 ? ctx.moveTo(pt[0], pt[1]) : ctx.lineTo(pt[0], pt[1]));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      });
+
+      // Stratejik Başkent & Temsilcilik Radar Noktaları ve Diplomatik Bağlantı Hatları
+      const hubs = [
+        { x: 855, y: 225, name: "KAFKAS TÜRK CUMHURİYETİ (MERKEZ)" },
+        { x: 755, y: 215, name: "UNIONE MILAN" },
+        { x: 785, y: 185, name: "ORTA AVRUPA" },
+        { x: 295, y: 195, name: "MANITOBA" },
+        { x: 265, y: 265, name: "SONORA" },
+        { x: 1175, y: 345, name: "BORNEO" },
+        { x: 1115, y: 335, name: "JOHOR" }
+      ];
+      // Merkezden tüm temsilciliklere altın diplomatik hatlar
+      hubs.slice(1).forEach(t => {
+        ctx.strokeStyle = "rgba(245, 185, 20, 0.72)";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(hubs[0].x, hubs[0].y);
+        ctx.quadraticCurveTo((hubs[0].x + t.x) / 2, Math.min(hubs[0].y, t.y) - 65, t.x, t.y);
+        ctx.stroke();
+      });
+      hubs.forEach((hNode, idx) => {
+        ctx.beginPath();
+        ctx.arc(hNode.x, hNode.y, idx === 0 ? 18 : 12, 0, Math.PI * 2);
+        ctx.strokeStyle = idx === 0 ? "#ef4444" : "#f5b914";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(hNode.x, hNode.y, idx === 0 ? 7 : 5, 0, Math.PI * 2);
+        ctx.fillStyle = idx === 0 ? "#ef4444" : "#fde047";
+        ctx.fill();
+        ctx.font = "800 16px 'Segoe UI', Arial, sans-serif";
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.fillText(hNode.name, hNode.x, hNode.y - 22);
+      });
+
+      // Üst & Alt Çerçeve Başlıkları (Tam Sığan Ölçekli)
+      ctx.fillStyle = "#081121";
+      ctx.fillRect(0, 0, w, 74);
+      ctx.fillRect(0, h - 64, w, 64);
+      ctx.strokeStyle = "#f5b914";
+      ctx.lineWidth = 10;
+      ctx.strokeRect(6, 6, w - 12, h - 12);
+      ctx.fillStyle = "#e51919";
+      ctx.fillRect(12, 12, w - 24, 12);
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 32px 'Segoe UI', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("🌐 HABER GLOBAL 100 DEVLET DİPLOMASİ & STRATEJİ HARİTASI", w / 2, 48);
+
+      ctx.fillStyle = "#f5b914";
+      ctx.font = "700 22px 'Segoe UI', Arial, sans-serif";
+      ctx.fillText("KAFKAS TÜRK CUMHURİYETİ • UNIONE MILAN • MANITOBA • SONORA • BORNEO • JOHOR • ORTA AVRUPA", w / 2, h - 26);
+
+      return new THREE.CanvasTexture(c);
+    }
+
+    const marbleFloorTex = makeMarbleTexture("#162238", "rgba(255,255,255,0.13)", 14, 18);
+    const whiteMarbleTex = makeMarbleTexture("#243452", "rgba(245,185,20,0.22)", 6, 6);
+    const mahoganyWoodTex = makeWoodTexture("#542614", "#2b1006");
+
+    // Ana Materyaller (Studio HDRI ile Gerçekçi Yansıma Veren PBR Değerleri)
+    const floorMat = new THREE.MeshStandardMaterial({ map: marbleFloorTex, roughness: 0.14, metalness: 0.25 });
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x1c2942, roughness: 0.36, metalness: 0.15 });
+    const darkPanelMat = new THREE.MeshStandardMaterial({ color: 0x111a2e, roughness: 0.24, metalness: 0.45 });
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xffc83b, roughness: 0.18, metalness: 0.88 });
+    const copperMat = new THREE.MeshStandardMaterial({ color: 0xd97742, roughness: 0.20, metalness: 0.86 });
+    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xeef4fa, roughness: 0.12, metalness: 0.92 });
+    const redGlowMat = new THREE.MeshBasicMaterial({ color: 0xff1e1e });
+    const goldGlowMat = new THREE.MeshBasicMaterial({ color: 0xffcf40 });
     const glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0x99ccff, transparent: true, opacity: 0.28, roughness: 0.08, metalness: 0.1
+      color: 0xdbeafe, transparent: true, opacity: 0.30, roughness: 0.06, metalness: 0.1
     });
-    const mahoganyMat = new THREE.MeshStandardMaterial({ color: 0x3b1d11, roughness: 0.28, metalness: 0.15 });
-    const leatherMat = new THREE.MeshStandardMaterial({ color: 0x1c2536, roughness: 0.45, metalness: 0.1 });
+    const mahoganyMat = new THREE.MeshStandardMaterial({ map: mahoganyWoodTex, color: 0x69301a, roughness: 0.22, metalness: 0.18 });
+    const leatherMat = new THREE.MeshStandardMaterial({ color: 0x5c2318, roughness: 0.34, metalness: 0.12 });
+    const creamLeatherMat = new THREE.MeshStandardMaterial({ color: 0xd6c7b2, roughness: 0.36, metalness: 0.08 });
 
     // Tıklanabilir Etkileşimli 3D Nesneler Listesi
     const interactables = [];
@@ -775,55 +951,274 @@
     }
 
     // ============================================================================
-    // 4. MİMARİ İNŞA: ZEMİN, TAVAN, KORİDOR, ASANSÖR, ÖDÜL GALERİSİ, STÜDYO VE ODALAR
+    // YÜKSEK DETAYLI (HIGH-POLY) ÇOK PARÇALI 3D MOBİLYA, KAMERA, İNSAN VE KAHVE BARİSTA ÜRETİCİLERİ
+    // (Hiçbir odada basit kutu/küp koltuk veya masa bırakmaz!)
     // ============================================================================
-    // Ana Zemin (44m x 48m Kompleks)
+    function buildExecutiveChair(customLeatherMat = leatherMat) {
+      const g = new THREE.Group();
+      // 1. 5 Kollu Krom Yıldız Ayak + 5 Çift Tekerlek + Amortisör Sütunu
+      const centerHub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.36, 16), chromeMat);
+      centerHub.position.y = 0.22;
+      g.add(centerHub);
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.028, 0.38, 12), chromeMat);
+        leg.rotation.z = Math.PI / 2.35;
+        leg.rotation.y = a;
+        leg.position.set(Math.cos(a) * 0.17, 0.08, Math.sin(a) * 0.17);
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.03, 12), darkPanelMat);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(Math.cos(a) * 0.33, 0.035, Math.sin(a) * 0.33);
+        g.add(leg, wheel);
+      }
+      // 2. Konturlu Ergonomik Deri Oturma Minderi + Altın Fitil Çerçevesi
+      const seatBase = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.31, 0.11, 24), customLeatherMat);
+      seatBase.scale.set(1.08, 1.0, 1.05);
+      seatBase.position.set(0, 0.44, 0.02);
+      const seatGoldPiping = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.015, 10, 28), goldMat);
+      seatGoldPiping.rotation.x = Math.PI / 2;
+      seatGoldPiping.position.set(0, 0.49, 0.02);
+      g.add(seatBase, seatGoldPiping);
+
+      // 3. Boğumlu Kapitone Deri Sırtlık (4 Yatay Destek Yastığı + Başlık + Altın Plaka)
+      const backGroup = new THREE.Group();
+      backGroup.position.set(0, 0.50, -0.26);
+      backGroup.rotation.x = -0.12;
+      const backSpine = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.86, 0.08), customLeatherMat);
+      backSpine.position.y = 0.43;
+      backGroup.add(backSpine);
+      for (let r = 0; r < 4; r++) {
+        const bolster = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.52, 16), customLeatherMat);
+        bolster.rotation.z = Math.PI / 2;
+        bolster.scale.set(1.0, 1.0, 0.65);
+        bolster.position.set(0, 0.14 + r * 0.18, 0.04);
+        backGroup.add(bolster);
+      }
+      const headrest = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.44, 16), customLeatherMat);
+      headrest.rotation.z = Math.PI / 2;
+      headrest.position.set(0, 0.90, 0.05);
+      const goldCrest = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.04, 0.02), goldMat);
+      goldCrest.position.set(0, 0.80, 0.10);
+      backGroup.add(headrest, goldCrest);
+      g.add(backGroup);
+
+      // 4. Kavisli Krom ve Deri Kolçaklar
+      [-0.33, 0.33].forEach(xSide => {
+        const armPost = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.24, 12), chromeMat);
+        armPost.position.set(xSide, 0.56, -0.04);
+        const armPad = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.38, 14), customLeatherMat);
+        armPad.rotation.x = Math.PI / 2;
+        armPad.scale.set(1.0, 1.0, 0.55);
+        armPad.position.set(xSide, 0.68, 0.02);
+        g.add(armPost, armPad);
+      });
+      return g;
+    }
+
+    function buildChesterfieldSofa(length = 3.8, sofaColorHex = 0x6e1a1a) {
+      const g = new THREE.Group();
+      const chMat = new THREE.MeshStandardMaterial({ color: sofaColorHex, roughness: 0.32, metalness: 0.12 });
+      // Alt Ahşap Baza ve 4 Pirinç Ayak
+      const plinth = new THREE.Mesh(new THREE.BoxGeometry(length, 0.14, 0.96), mahoganyMat);
+      plinth.position.y = 0.12;
+      g.add(plinth);
+      [-length / 2 + 0.18, length / 2 - 0.18].forEach(lx => {
+        [-0.38, 0.38].forEach(lz => {
+          const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.03, 0.10, 14), goldMat);
+          foot.position.set(lx, 0.05, lz);
+          g.add(foot);
+        });
+      });
+      // 3 Adet Dolgun Yuvarlatılmış Oturma Minderi
+      const cushionCount = 3;
+      const cw = (length - 0.56) / cushionCount;
+      for (let i = 0; i < cushionCount; i++) {
+        const cx = -((cushionCount - 1) * cw) / 2 + i * cw;
+        const cush = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, cw - 0.04, 20), chMat);
+        cush.rotation.z = Math.PI / 2;
+        cush.scale.set(0.36, 1.0, 1.05);
+        cush.position.set(cx, 0.32, 0.06);
+        g.add(cush);
+      }
+      // Silindirik Kıvrımlı Chesterfield Sırtlık + Altın Kapitone Düğmeleri
+      const backRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, length, 24), chMat);
+      backRoll.rotation.z = Math.PI / 2;
+      backRoll.position.set(0, 0.88, -0.34);
+      const backWall = new THREE.Mesh(new THREE.BoxGeometry(length - 0.1, 0.56, 0.28), chMat);
+      backWall.position.set(0, 0.56, -0.34);
+      g.add(backRoll, backWall);
+      for (let b = 0; b < 9; b++) {
+        const bx = -length * 0.4 + (b / 8) * (length * 0.8);
+        const btn = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 10), goldMat);
+        btn.position.set(bx, 0.64 + (b % 2) * 0.12, -0.19);
+        g.add(btn);
+      }
+      // Kıvrımlı Silindirik Kolçaklar + Altın Rozet Diskleri
+      [-length / 2 + 0.18, length / 2 - 0.18].forEach(ax => {
+        const armRoll = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.98, 20), chMat);
+        armRoll.rotation.x = Math.PI / 2;
+        armRoll.position.set(ax, 0.62, 0.0);
+        const rosette = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 1.0, 16), goldMat);
+        rosette.rotation.x = Math.PI / 2;
+        rosette.position.set(ax, 0.62, 0.0);
+        g.add(armRoll, rosette);
+      });
+      return g;
+    }
+
+    function buildPedestalBroadcastCamera() {
+      const g = new THREE.Group();
+      // 3 Tekerlekli Profesyonel Stüdyo Pedestal Tabanı
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2;
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.55), darkPanelMat);
+        leg.rotation.y = a;
+        leg.position.set(Math.sin(a) * 0.24, 0.08, Math.cos(a) * 0.24);
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 14), chromeMat);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(Math.sin(a) * 0.46, 0.06, Math.cos(a) * 0.46);
+        g.add(leg, wheel);
+      }
+      // Teleskopik Hidrolik Sütun + Direksiyon Halkası
+      const colLower = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.16, 0.72, 20), darkPanelMat);
+      colLower.position.y = 0.44;
+      const colUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.68, 20), chromeMat);
+      colUpper.position.y = 1.08;
+      const steerRing = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.022, 12, 28), goldMat);
+      steerRing.rotation.x = Math.PI / 2;
+      steerRing.position.y = 0.82;
+      // Kamera Gövdesi, Teleprompter Cam Davlumbazı, Lens & Kırmızı ON-AIR Tally Işığı
+      const headBody = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.36, 0.68), darkPanelMat);
+      headBody.position.set(0, 1.56, 0);
+      const sideStripe = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.10, 0.52), goldMat);
+      sideStripe.position.set(0, 1.56, -0.02);
+      const lensBarrel = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.36, 24), chromeMat);
+      lensBarrel.rotation.x = Math.PI / 2;
+      lensBarrel.position.set(0, 1.56, 0.46);
+      const prompterHood = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 0.34, 4), darkPanelMat);
+      prompterHood.rotation.y = Math.PI / 4;
+      prompterHood.rotation.x = Math.PI / 2;
+      prompterHood.position.set(0, 1.58, 0.68);
+      const prompterGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.28), glassMat);
+      prompterGlass.rotation.x = -Math.PI / 4;
+      prompterGlass.position.set(0, 1.56, 0.68);
+      const tally = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.06, 0.06), redGlowMat);
+      tally.position.set(0, 1.82, 0.42);
+      g.add(colLower, colUpper, steerRing, headBody, sideStripe, lensBarrel, prompterHood, prompterGlass, tally);
+      return g;
+    }
+
+    function buildPersonFigure(suitHex = 0x0f172a, tieHex = 0xe51919, seated = true) {
+      const g = new THREE.Group();
+      const suitMat = new THREE.MeshStandardMaterial({ color: suitHex, roughness: 0.45, metalness: 0.1 });
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xe6b89c, roughness: 0.42 });
+      const shirtMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+      const tieMat = new THREE.MeshStandardMaterial({ color: tieHex, roughness: 0.25 });
+      const hairMat = new THREE.MeshStandardMaterial({ color: 0x1e1b18, roughness: 0.5 });
+
+      const torsoY = seated ? 0.88 : 1.15;
+      // Gövde Ceket
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.18, 0.56, 18), suitMat);
+      torso.scale.set(1.15, 1.0, 0.72);
+      torso.position.y = torsoY;
+      // Beyaz Gömlek Yaka ve Kravat
+      const shirtV = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.02, 0.32, 12), shirtMat);
+      shirtV.position.set(0, torsoY + 0.12, 0.11);
+      const tie = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.28, 0.02), tieMat);
+      tie.position.set(0, torsoY + 0.08, 0.155);
+      // Boyun ve Baş
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.075, 0.12, 14), skinMat);
+      neck.position.y = torsoY + 0.32;
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.145, 22, 22), skinMat);
+      head.scale.set(0.92, 1.08, 0.96);
+      head.position.y = torsoY + 0.47;
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.58), hairMat);
+      hair.position.y = torsoY + 0.49;
+      hair.rotation.x = -0.18;
+      // Omuzlar ve Kollar
+      [-0.25, 0.25].forEach(sx => {
+        const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.048, 0.44, 12), suitMat);
+        arm.position.set(sx, torsoY - 0.02, 0.08);
+        arm.rotation.x = -0.55;
+        const hand = new THREE.Mesh(new THREE.SphereGeometry(0.048, 12, 12), skinMat);
+        hand.position.set(sx * 0.85, torsoY - 0.16, 0.26);
+        g.add(arm, hand);
+      });
+      g.add(torso, shirtV, tie, neck, head, hair);
+      return g;
+    }
+
+    // ============================================================================
+    // 4. MİMARİ İNŞA: ZEMİN, KASETLİ TAVAN, AVİZELER, KORİDOR, ASANSÖR VE ODALAR
+    // ============================================================================
     const mainFloor = new THREE.Mesh(new THREE.PlaneGeometry(46, 50), floorMat);
     mainFloor.rotation.x = -Math.PI / 2;
     mainFloor.receiveShadow = true;
     scene.add(mainFloor);
 
     // Kırmızı Halı (Asansör Lobisinden Görkemli Stüdyo Kapısına Kadar)
-    const carpetMat = new THREE.MeshStandardMaterial({ color: 0x8f0d0d, roughness: 0.75, metalness: 0.05 });
+    const carpetMat = new THREE.MeshStandardMaterial({ color: 0x991111, roughness: 0.65, metalness: 0.08 });
     const carpet = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.02, 21.5), carpetMat);
     carpet.position.set(0, 0.01, 8.5);
     scene.add(carpet);
-    // Halı Altın Kenar Şeritleri
     [-1.62, 1.62].forEach(xPos => {
       const trim = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.025, 21.5), goldMat);
       trim.position.set(xPos, 0.015, 8.5);
       scene.add(trim);
     });
 
-    // Tavan & Lineer Stüdyo Aydınlatmaları
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(46, 50), new THREE.MeshStandardMaterial({ color: 0x070b14, roughness: 0.7 }));
+    // Ferah Mimari Kasetli Tavan (Coffered Ceiling) + Gömme LED Havuzları + Altın Avizeler
+    const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.45, metalness: 0.2 });
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(46, 50), ceilingMat);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = 5.2;
     scene.add(ceiling);
 
-    // Ortam ve Stüdyo Işıkları
-    scene.add(new THREE.AmbientLight(0xdbeafe, 0.65));
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 0.55);
-    hemiLight.position.set(0, 5, 0);
-    scene.add(hemiLight);
-
-    const lightZPositions = [16, 10, 4, -2, -9, -15];
-    lightZPositions.forEach(zPos => {
-      const pLight = new THREE.PointLight(0xfff4e0, 0.85, 18);
-      pLight.position.set(0, 4.7, zPos);
-      scene.add(pLight);
-      // Tavan LED armatürü
-      const ledBar = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.08, 0.25), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-      ledBar.position.set(0, 5.12, zPos);
-      scene.add(ledBar);
+    // Tavan Altın Kiriş Izgaraları ve Işıklı Tavan Kasetleri
+    [-14.5, 0, 14.5].forEach(cx => {
+      [15, 7.5, 0, -8, -15].forEach(cz => {
+        const cofferRim = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.14, 4.6), goldMat);
+        cofferRim.position.set(cx, 5.12, cz);
+        const cofferGlow = new THREE.Mesh(new THREE.PlaneGeometry(5.1, 4.1), new THREE.MeshBasicMaterial({ color: 0xfff8e7 }));
+        cofferGlow.rotation.x = Math.PI / 2;
+        cofferGlow.position.set(cx, 5.10, cz);
+        // Sarkıt Kristal & Altın Halka Avize
+        const chandRing = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.045, 14, 36), goldMat);
+        chandRing.rotation.x = Math.PI / 2;
+        chandRing.position.set(cx, 4.55, cz);
+        const chandGlow = new THREE.Mesh(new THREE.TorusGeometry(1.08, 0.025, 10, 36), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        chandGlow.rotation.x = Math.PI / 2;
+        chandGlow.position.set(cx, 4.52, cz);
+        scene.add(cofferRim, cofferGlow, chandRing, chandGlow);
+      });
     });
 
-    // Dış Çevre Duvarları
+    // Güçlü Broadcast Stüdyo ve Oda Aydınlatmaları
+    scene.add(new THREE.AmbientLight(0xf1f5f9, 1.15));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 0.95);
+    hemiLight.position.set(0, 5.2, 0);
+    scene.add(hemiLight);
+
+    const roomLightCoords = [
+      [0, 4.6, 16, 1.1], [0, 4.6, 9, 1.1], [0, 4.6, 2, 1.1],
+      [0, 4.6, -8, 1.35], [0, 4.6, -15, 1.45],
+      [-14.5, 4.6, 7.5, 1.35], [14.5, 4.6, 7.5, 1.35], [-14.5, 4.6, -12.5, 1.25]
+    ];
+    roomLightCoords.forEach(([lx, ly, lz, inten]) => {
+      const pLight = new THREE.PointLight(0xfff6e5, inten, 24);
+      pLight.position.set(lx, ly, lz);
+      scene.add(pLight);
+    });
+
+    // Dış Çevre Duvarları + Mimari Altın Süpürgelik & Duvar Aplikleri
     function addWall(w, h, d, x, y, z, mat = wallMat) {
       const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
       m.position.set(x, y, z);
       m.castShadow = true; m.receiveShadow = true;
       scene.add(m);
+      const base = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.14, d + 0.04), goldMat);
+      base.position.set(x, 0.07, z);
+      scene.add(base);
       return m;
     }
     addWall(46, 5.2, 0.4, 0, 2.6, 21.5);   // Güney duvar (Asansör arkası)
@@ -838,30 +1233,28 @@
     elevGroup.position.set(0, 0, 19.6);
     scene.add(elevGroup);
 
-    // Asansör dış mermer & altın çerçeve
     const elevFrameL = new THREE.Mesh(new THREE.BoxGeometry(1.1, 4.4, 0.5), darkPanelMat);
     elevFrameL.position.set(-2.1, 2.2, 0);
     const elevFrameR = new THREE.Mesh(new THREE.BoxGeometry(1.1, 4.4, 0.5), darkPanelMat);
     elevFrameR.position.set(2.1, 2.2, 0);
     const elevHeader = new THREE.Mesh(new THREE.BoxGeometry(5.3, 1.0, 0.55), darkPanelMat);
     elevHeader.position.set(0, 4.5, 0);
-    elevGroup.add(elevFrameL, elevFrameR, elevHeader);
+    const elevGoldArch = new THREE.Mesh(new THREE.BoxGeometry(5.42, 4.6, 0.52), goldMat);
+    elevGoldArch.position.set(0, 2.3, 0.06);
+    elevGroup.add(elevGoldArch, elevFrameL, elevFrameR, elevHeader);
 
-    // Asansör Üst Dijital Kat Tabelası
     const elevSignTex = makeSignTexture("🛗 PANORAMİK ASANSÖR  |  KAT: G — LOBİ", "KAT SEÇMEK İÇİN ASANSÖRE VEYA ÇAĞRI PANELİNE TIKLAYIN", "#e51919", "#050914");
     const elevSign = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 0.78), new THREE.MeshBasicMaterial({ map: elevSignTex }));
     elevSign.position.set(0, 4.5, -0.29);
     elevSign.rotation.y = Math.PI;
     elevGroup.add(elevSign);
 
-    // Çift Kanatlı Hareketli Fırçalanmış Çelik Asansör Kapıları
     const elevDoorLeft = new THREE.Mesh(new THREE.BoxGeometry(1.52, 3.8, 0.12), chromeMat);
     elevDoorLeft.position.set(-0.77, 1.9, 0);
     const elevDoorRight = new THREE.Mesh(new THREE.BoxGeometry(1.52, 3.8, 0.12), chromeMat);
     elevDoorRight.position.set(0.77, 1.9, 0);
     elevGroup.add(elevDoorLeft, elevDoorRight);
 
-    // Asansör Çağrı Paneli (Sağ Sütun Üzerinde)
     const callPanel = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.65, 0.08), goldMat);
     callPanel.position.set(-2.1, 1.45, -0.28);
     elevGroup.add(callPanel);
@@ -872,26 +1265,48 @@
       });
     });
 
-    // Giriş Karşılama Danışma Bankosu (X = -5.2, Z = 15.5)
-    const recDesk = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.15, 1.1), darkPanelMat);
-    recDesk.position.set(-5.2, 0.58, 15.5);
-    scene.add(recDesk);
-    const recGoldTrim = new THREE.Mesh(new THREE.BoxGeometry(3.68, 0.12, 1.16), goldMat);
-    recGoldTrim.position.set(-5.2, 1.15, 15.5);
-    scene.add(recGoldTrim);
+    // Blender 4.2 90,178-Vertex GLB Yüklenene Kadar Gösterilecek Yüksek Detaylı (High-Poly) Sculpted Mobilya Grubu
+    const fallbackFurnitureGroup = new THREE.Group();
+    scene.add(fallbackFurnitureGroup);
+
+    // Giriş Karşılama Danışma Bankosu (X = -4.8, Z = 15.5) + Protokol Görevlisi
+    const recDesk = new THREE.Mesh(new THREE.CylinderGeometry(1.85, 1.95, 1.12, 32, 1, false, -Math.PI * 0.45, Math.PI * 0.9), darkPanelMat);
+    recDesk.position.set(-4.8, 0.56, 15.5);
+    fallbackFurnitureGroup.add(recDesk);
+    const recGoldTrim = new THREE.Mesh(new THREE.CylinderGeometry(1.98, 1.98, 0.10, 32, 1, false, -Math.PI * 0.46, Math.PI * 0.92), goldMat);
+    recGoldTrim.position.set(-4.8, 1.14, 15.5);
+    fallbackFurnitureGroup.add(recGoldTrim);
+    const receptionistFig = buildPersonFigure(0x1e293b, 0xf5b914, true);
+    receptionistFig.position.set(-4.8, 0.05, 16.25);
+    receptionistFig.rotation.y = Math.PI;
+    fallbackFurnitureGroup.add(receptionistFig);
+
     const recSign = new THREE.Mesh(
       new THREE.PlaneGeometry(3.4, 0.65),
       new THREE.MeshBasicMaterial({ map: makeSignTexture("HABER GLOBAL DANIŞMA & PROTOKOL", "HOŞ GELDİNİZ • RÖPORTAJ KAYIT MASASI", "#e51919") })
     );
-    recSign.position.set(-5.2, 0.58, 14.93);
+    recSign.position.set(-4.8, 1.48, 14.85);
     recSign.rotation.y = Math.PI;
     scene.add(recSign);
     registerInteractable(recDesk, "🎙️ Danışma & Özel Röportaj Başvuru Formunu Aç", () => openInterviewModal());
+    registerInteractable(recSign, "🎙️ Danışma & Özel Röportaj Başvuru Formunu Aç", () => openInterviewModal());
 
     // ----------------------------------------------------------------------------
     // BÖLÜM 2: ANA KORİDOR & ÖDÜLLERİN SERGİLENDİĞİ ŞEREF GALERİSİ (Z = +12 .. +1)
     // ----------------------------------------------------------------------------
-    // Koridor Yan Sütunları ve Ödül Vitrinleri (Sol ve Sağda 3'er Adet = 6 Prestij Ödülü)
+    // Koridor Mermer Sütunları (Fluted Corinthian Pilasters)
+    [-5.8, 5.8].forEach(px => {
+      [14.5, 10.5, 6.5, 2.5].forEach(pz => {
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 4.8, 20), new THREE.MeshStandardMaterial({ map: whiteMarbleTex, roughness: 0.18, metalness: 0.25 }));
+        col.position.set(px, 2.4, pz);
+        const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.30, 0.28, 20), goldMat);
+        cap.position.set(px, 4.92, pz);
+        const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.28, 0.72), goldMat);
+        plinth.position.set(px, 0.14, pz);
+        fallbackFurnitureGroup.add(col, cap, plinth);
+      });
+    });
+
     const awardsData = [
       {
         x: -4.2, z: 11.2,
@@ -937,17 +1352,19 @@
       pedGroup.position.set(aw.x, 0, aw.z);
       scene.add(pedGroup);
 
-      // Mermer Kaide
-      const base = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.25, 1.1), new THREE.MeshStandardMaterial({ map: whiteMarbleTex, roughness: 0.2, metalness: 0.3 }));
-      base.position.y = 0.625;
-      pedGroup.add(base);
+      // Kademeli Mermer & Altın Müze Kaidesi
+      const base = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.22, 1.06), new THREE.MeshStandardMaterial({ map: whiteMarbleTex, roughness: 0.16, metalness: 0.28 }));
+      base.position.y = 0.61;
+      const baseCrown = new THREE.Mesh(new THREE.BoxGeometry(1.14, 0.08, 1.14), goldMat);
+      baseCrown.position.y = 1.24;
+      pedGroup.add(base, baseCrown);
 
       // Altın Plaket Çerçevesi
       const plaque = new THREE.Mesh(
         new THREE.PlaneGeometry(0.95, 0.42),
-        new THREE.MeshBasicMaterial({ map: makeSignTexture(aw.title.slice(0, 32) + "...", aw.year, "#f5b914", "#080d18", 512, 180) })
+        new THREE.MeshBasicMaterial({ map: makeSignTexture(aw.title, aw.year, "#f5b914", "#080d18", 640, 200) })
       );
-      plaque.position.set(0, 0.82, aw.x < 0 ? 0.56 : -0.56);
+      plaque.position.set(0, 0.82, aw.x < 0 ? 0.55 : -0.55);
       plaque.rotation.y = aw.x < 0 ? 0 : Math.PI;
       pedGroup.add(plaque);
 
@@ -986,12 +1403,11 @@
     scene.add(galleryBanner);
 
     // ----------------------------------------------------------------------------
-    // BÖLÜM 3: ÜLKE TEMSİLCİLERİ ODASI / 17 ÜLKE DİPLOMASİ SALONU (SOL KANAT: X = -14, Z = +6)
+    // BÖLÜM 3: ÜLKE TEMSİLCİLERİ ODASI / 17 ÜLKE DİPLOMASİ SALONU (SOL KANAT: X = -14.5, Z = +7.5)
     // ----------------------------------------------------------------------------
-    // Koridordan Sol Odaya Geçiş Duvarları
     addWall(0.35, 5.2, 7.5, -6.5, 2.6, 14.5);
     addWall(0.35, 5.2, 7.5, -6.5, 2.6, 0.5);
-    // Oda Giriş Таbelası
+
     const dipSign = new THREE.Mesh(
       new THREE.PlaneGeometry(5.2, 0.8),
       new THREE.MeshBasicMaterial({ map: makeSignTexture("🌍 17 ÜLKE TEMSİLCİLERİ & DİPLOMASİ ODASI", "YÜKSEK İSTİŞARE VE STRATEJİK ANALİZ KONSEYİ", "#e51919") })
@@ -1000,17 +1416,23 @@
     dipSign.rotation.y = Math.PI / 2;
     scene.add(dipSign);
 
-    // Dev Oval Maun Diplomasi Masası (X = -14.5, Z = 7.5)
-    const dipTable = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.0, 0.82, 40), mahoganyMat);
+    // Dev Oval Maun & Altın Kakmalı Diplomasi Masası (X = -14.5, Z = 7.5)
+    const dipTablePedestal = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.5, 0.72, 36), darkPanelMat);
+    dipTablePedestal.scale.set(1.0, 1.0, 1.55);
+    dipTablePedestal.position.set(-14.5, 0.36, 7.5);
+    const dipTable = new THREE.Mesh(new THREE.CylinderGeometry(3.45, 3.32, 0.14, 48), mahoganyMat);
     dipTable.scale.set(1.0, 1.0, 1.65);
-    dipTable.position.set(-14.5, 0.41, 7.5);
-    scene.add(dipTable);
-    const dipTableGold = new THREE.Mesh(new THREE.CylinderGeometry(3.44, 3.44, 0.06, 40), goldMat);
-    dipTableGold.scale.set(1.0, 1.0, 1.65);
-    dipTableGold.position.set(-14.5, 0.83, 7.5);
-    scene.add(dipTableGold);
+    dipTable.position.set(-14.5, 0.78, 7.5);
+    const dipTableGold = new THREE.Mesh(new THREE.TorusGeometry(3.42, 0.045, 16, 64), goldMat);
+    dipTableGold.rotation.x = Math.PI / 2;
+    dipTableGold.scale.set(1.0, 1.65, 1.0);
+    dipTableGold.position.set(-14.5, 0.82, 7.5);
+    const dipCenterMapRing = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, 0.03, 36), goldMat);
+    dipCenterMapRing.scale.set(1.0, 1.0, 1.55);
+    dipCenterMapRing.position.set(-14.5, 0.855, 7.5);
+    fallbackFurnitureGroup.add(dipTablePedestal, dipTable, dipTableGold, dipCenterMapRing);
 
-    // Ülke Temsilcileri Koltukları ve Bayrak İsimlikleri
+    // Ülke Temsilcileri Yüksek Detaylı Kapitone Deri Makam Koltukları, Mikrofonlar ve Bayrak İsimlikleri
     const representatives = [
       { country: "Kafkas Türk Cumhuriyeti", leader: "Hakan Karadağ", role: "Haber Global İmtiyaz Sahibi & DYP Genel Sekreteri", note: "Kafkasya, Anadolu ve küresel diplomasi merkez üssü." },
       { country: "Unione Milan (İtalya)", leader: "Ofa", role: "Başbakan & Avrupa Ekonomisi Başanalisti", note: "Avrupa gümrük birliği, sanayi üretimi ve mali disiplin stratejileri." },
@@ -1024,25 +1446,32 @@
 
     representatives.forEach((rep, i) => {
       const angle = (i / representatives.length) * Math.PI * 2;
-      const cx = -14.5 + Math.cos(angle) * 4.1;
-      const cz = 7.5 + Math.sin(angle) * 6.2;
+      const cx = -14.5 + Math.cos(angle) * 4.15;
+      const cz = 7.5 + Math.sin(angle) * 6.25;
 
-      // Deri Makam Koltuğu
-      const chair = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.35, 0.85), leatherMat);
-      chair.position.set(cx, 0.68, cz);
-      chair.lookAt(-14.5, 0.68, 7.5);
-      scene.add(chair);
+      // Yüksek Poligonlu 5-Yıldız Krom Ayaklı Kapitone Deri Makam Koltuğu (ASLA KUTU DEĞİL!)
+      const execChair = buildExecutiveChair(i === 0 ? new THREE.MeshStandardMaterial({ color: 0x7c1d1d, roughness: 0.3 }) : leatherMat);
+      execChair.position.set(cx, 0, cz);
+      execChair.lookAt(-14.5, 0, 7.5);
+      fallbackFurnitureGroup.add(execChair);
 
-      // Masa Üstü Altın İsimlik & Bayrak Plakası
+      // Masa Üstü Altın İsimlik & Delege Mikrofonu
       const px = -14.5 + Math.cos(angle) * 2.55;
       const pz = 7.5 + Math.sin(angle) * 4.1;
       const nameplate = new THREE.Mesh(
-        new THREE.BoxGeometry(0.75, 0.24, 0.12),
-        new THREE.MeshBasicMaterial({ map: makeSignTexture(rep.country, rep.leader, "#f5b914", "#071020", 512, 160) })
+        new THREE.BoxGeometry(0.82, 0.26, 0.10),
+        new THREE.MeshBasicMaterial({ map: makeSignTexture(rep.country, rep.leader, "#f5b914", "#071020", 640, 180) })
       );
-      nameplate.position.set(px, 0.98, pz);
-      nameplate.lookAt(-14.5, 0.98, 7.5);
+      nameplate.position.set(px, 0.99, pz);
+      nameplate.lookAt(-14.5, 0.99, 7.5);
       scene.add(nameplate);
+
+      const blotter = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.02, 0.38), darkPanelMat);
+      blotter.position.set(px, 0.86, pz);
+      blotter.lookAt(-14.5, 0.86, 7.5);
+      const micStem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.28, 10), chromeMat);
+      micStem.position.set(px + 0.15, 1.0, pz);
+      fallbackFurnitureGroup.add(blotter, micStem);
 
       const triggerFn = () => {
         openInfoModal(
@@ -1052,21 +1481,32 @@
           `<button class="hud-btn gold" onclick="closeModals();openInterviewModal();">🎙️ Bu Temsilcilikle Ortak Zirve / Röportaj Talep Et</button>`
         );
       };
-      registerInteractable(chair, `🌍 ${rep.country} Temsilcisi (${rep.leader}) — Dosyayı Aç`, triggerFn);
+      registerInteractable(execChair, `🌍 ${rep.country} Temsilcisi (${rep.leader}) — Dosyayı Aç`, triggerFn);
       registerInteractable(nameplate, `🌍 ${rep.country} Temsilcisi (${rep.leader}) — Dosyayı Aç`, triggerFn);
     });
 
-    // Ülke Temsilcileri Odası Duvarında Dev Küresel Strateji Haritası Ekranı
+    // Ülke Temsilcileri Odası Duvarında Gerçek Çizimli Küresel Strateji & Radar Haritası Ekranı (KESİLMEZ!)
+    const worldMapFrame = new THREE.Mesh(new THREE.BoxGeometry(0.18, 3.65, 9.1), goldMat);
+    worldMapFrame.position.set(-22.25, 2.75, 7.5);
+    scene.add(worldMapFrame);
+
     const worldMapScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(8.5, 3.2),
-      new THREE.MeshBasicMaterial({ map: makeSignTexture("🌐 HABER GLOBAL 100 DEVLET DİPLOMASİ & STRATEJİ HARİTASI", "UNIONE MILAN • MANITOBA • SONORA • BORNEO • JOHOR • KAFKAS TÜRK CUMHURİYETİ", "#e51919", "#061226", 1024, 380) })
+      new THREE.PlaneGeometry(8.8, 3.4),
+      new THREE.MeshBasicMaterial({ map: makeWorldStrategyMapTexture() })
     );
-    worldMapScreen.position.set(-22.2, 2.7, 7.5);
+    worldMapScreen.position.set(-22.12, 2.75, 7.5);
     worldMapScreen.rotation.y = Math.PI / 2;
     scene.add(worldMapScreen);
+    registerInteractable(worldMapScreen, "🌐 100 Devlet Küresel Diplomasi & Strateji Haritasını İncele", () => {
+      openInfoModal(
+        "🌐 HABER GLOBAL 100 DEVLET DİPLOMASİ MERKEZİ",
+        "Küresel Strateji & İstişare Haritası",
+        "Kafkas Türk Cumhuriyeti merkezli olarak Unione Milan, Manitoba, Sonora, Borneo, Johor ve Orta Avrupa temsilciliklerinin canlı diplomatik iletişim, ticaret koridoru ve güvenlik analiz ekranı."
+      );
+    });
 
     // ----------------------------------------------------------------------------
-    // BÖLÜM 4: VIP MİSAFİR ODASI, BEKLEME SALONU & KAHVE MAKİNESİ (SAĞ KANAT: X = +14, Z = +7.5)
+    // BÖLÜM 4: VIP MİSAFİR ODASI, BEKLEME SALONU & KAHVE MAKİNESİ (SAĞ KANAT: X = +14.5, Z = +7.5)
     // ----------------------------------------------------------------------------
     addWall(0.35, 5.2, 7.5, 6.5, 2.6, 14.5);
     addWall(0.35, 5.2, 7.5, 6.5, 2.6, 0.5);
@@ -1079,72 +1519,94 @@
     loungeSign.rotation.y = -Math.PI / 2;
     scene.add(loungeSign);
 
-    // Lüks Bekleme Salonu Chesterfield Koltuklar & Mermer Sehpa (X = 13.5, Z = 7.5)
-    const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.1, 0.95), new THREE.MeshStandardMaterial({ color: 0x5c1919, roughness: 0.4 }));
-    sofaBack.position.set(13.5, 0.55, 4.2);
-    const sofaLeft = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.1, 3.8), new THREE.MeshStandardMaterial({ color: 0x5c1919, roughness: 0.4 }));
-    sofaLeft.position.set(10.8, 0.55, 7.2);
-    const sofaRight = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.1, 3.8), new THREE.MeshStandardMaterial({ color: 0x5c1919, roughness: 0.4 }));
-    sofaRight.position.set(16.2, 0.55, 7.2);
-    const coffeeTable = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.48, 1.5), new THREE.MeshStandardMaterial({ map: whiteMarbleTex, roughness: 0.15 }));
-    coffeeTable.position.set(13.5, 0.24, 7.2);
-    scene.add(sofaBack, sofaLeft, sofaRight, coffeeTable);
+    // Lüks Bekleme Salonu Yüksek Detaylı Kapitone Chesterfield Koltuklar & Mermer Sehpa (X = 13.5, Z = 7.2)
+    const sofaNorth = buildChesterfieldSofa(3.8, 0x732018);
+    sofaNorth.position.set(13.5, 0, 4.4);
+    const sofaSouth = buildChesterfieldSofa(3.8, 0x732018);
+    sofaSouth.position.set(13.5, 0, 10.0);
+    sofaSouth.rotation.y = Math.PI;
+    const clubChairWest = buildExecutiveChair(creamLeatherMat);
+    clubChairWest.position.set(10.6, 0, 7.2);
+    clubChairWest.rotation.y = Math.PI / 2;
+    const clubChairEast = buildExecutiveChair(creamLeatherMat);
+    clubChairEast.position.set(16.2, 0, 7.2);
+    clubChairEast.rotation.y = -Math.PI / 2;
 
-    // 3D PROFESYONEL İTALYAN ESPRESSO & TÜRK KAHVESİ BARİSTA MAKİNESİ (X = +19.8, Z = +7.5)
+    const coffeeTable = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.05, 0.46, 32), new THREE.MeshStandardMaterial({ map: whiteMarbleTex, roughness: 0.14, metalness: 0.2 }));
+    coffeeTable.scale.set(1.35, 1.0, 0.85);
+    coffeeTable.position.set(13.5, 0.23, 7.2);
+    const coffeeTableRim = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.03, 12, 36), goldMat);
+    coffeeTableRim.rotation.x = Math.PI / 2;
+    coffeeTableRim.scale.set(1.35, 0.85, 1.0);
+    coffeeTableRim.position.set(13.5, 0.46, 7.2);
+    fallbackFurnitureGroup.add(sofaNorth, sofaSouth, clubChairWest, clubChairEast, coffeeTable, coffeeTableRim);
+
+    // 3D PROFESYONEL İTALYAN ESPRESSO & KUMDA/KÖZDE TÜRK KAHVESİ BARİSTA İSTASYONU (X = +19.2, Z = +7.5)
     const baristaGroup = new THREE.Group();
-    baristaGroup.position.set(19.8, 0, 7.5);
+    baristaGroup.position.set(19.2, 0, 7.5);
     scene.add(baristaGroup);
 
-    // Barista Mermer Tezgahı
-    const barCounter = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 4.6), darkPanelMat);
-    barCounter.position.y = 0.55;
-    const barTop = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.08, 4.72), goldMat);
-    barTop.position.y = 1.12;
-    // Krom Espresso & Türk Kahvesi Makinesi Gövdesi
-    const machineBody = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.88, 1.85), chromeMat);
-    machineBody.position.set(0, 1.58, 0);
-    const machineRedHeader = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.22, 1.9), new THREE.MeshStandardMaterial({ color: 0xc81414, roughness: 0.2, metalness: 0.7 }));
-    machineRedHeader.position.set(0, 2.08, 0);
-    // Kahve Çekirdeği Hazneleri (Cam Silindirler)
-    const hopper1 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 0.38, 20), glassMat);
-    hopper1.position.set(0, 2.35, -0.45);
-    const hopper2 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 0.38, 20), glassMat);
-    hopper2.position.set(0, 2.35, 0.45);
-    // Buhar ve Espresso Başlıkları
-    const nozzle1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.25, 16), goldMat);
-    nozzle1.position.set(-0.48, 1.48, -0.35);
-    const nozzle2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.25, 16), goldMat);
-    nozzle2.position.set(-0.48, 1.48, 0.35);
+    const barCounter = new THREE.Mesh(new THREE.BoxGeometry(1.55, 1.12, 4.8), mahoganyMat);
+    barCounter.position.y = 0.56;
+    const barTop = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.09, 4.96), new THREE.MeshStandardMaterial({ map: whiteMarbleTex, roughness: 0.12, metalness: 0.25 }));
+    barTop.position.y = 1.15;
+    const machineBody = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.72, 1.55), chromeMat);
+    machineBody.position.set(0, 1.54, -0.85);
+    const machineCopperPanel = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.36, 1.48), copperMat);
+    machineCopperPanel.position.set(0, 1.56, -0.85);
+    const machineRedHeader = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.14, 1.62), goldMat);
+    machineRedHeader.position.set(0, 1.94, -0.85);
+    [-1.25, -0.85, -0.45].forEach(pz => {
+      const groupHead = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.12, 16), chromeMat);
+      groupHead.position.set(-0.42, 1.48, pz);
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.26, 12), darkPanelMat);
+      handle.rotation.z = Math.PI / 2;
+      handle.position.set(-0.56, 1.45, pz);
+      baristaGroup.add(groupHead, handle);
+    });
+    const sandBrewer = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.42, 0.28, 28), copperMat);
+    sandBrewer.position.set(0, 1.34, 0.95);
+    const glowingSand = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 24), goldGlowMat);
+    glowingSand.position.set(0, 1.49, 0.95);
+    [0.78, 0.98, 1.14].forEach((czPos, cIdx) => {
+      const cezve = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.085, 0.14, 16), copperMat);
+      cezve.position.set(-0.08 + (cIdx % 2) * 0.12, 1.56, czPos);
+      baristaGroup.add(cezve);
+    });
+    const hopper1 = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.11, 0.38, 20), glassMat);
+    hopper1.position.set(0, 2.22, -1.15);
+    const hopper2 = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.11, 0.38, 20), glassMat);
+    hopper2.position.set(0, 2.22, -0.55);
 
-    // Kahve Makinesi Üstü Işıklı Menü Panosu
+    const baristaPerson = buildPersonFigure(0x111827, 0xf5b914, false);
+    baristaPerson.position.set(1.05, 0, 0);
+    baristaPerson.rotation.y = -Math.PI / 2;
+
     const baristaSign = new THREE.Mesh(
-      new THREE.PlaneGeometry(4.2, 1.15),
-      new THREE.MeshBasicMaterial({ map: makeSignTexture("☕ VIP BARİSTA & KAHVE MAKİNESİ", "TÜRK KAHVESİ • ESPRESSO • CAPPUCCINO • MOCHA • RİZE ÇAYI (TIKLAYIN)", "#f5b914", "#09101d") })
+      new THREE.PlaneGeometry(4.6, 1.18),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("☕ VIP BARİSTA & KUMDA TÜRK KAHVESİ İSTASYONU", "TÜRK KAHVESİ • ESPRESSO • CAPPUCCINO • LATTE • RİZE ÇAYI (TIKLAYIN)", "#f5b914", "#09101d") })
     );
-    baristaSign.position.set(-0.2, 3.25, 0);
+    baristaSign.position.set(-0.2, 3.35, 0);
     baristaSign.rotation.y = -Math.PI / 2;
 
-    baristaGroup.add(barCounter, barTop, machineBody, machineRedHeader, hopper1, hopper2, nozzle1, nozzle2, baristaSign);
-    [barCounter, machineBody, machineRedHeader, baristaSign].forEach(m => {
+    baristaGroup.add(barCounter, barTop, machineBody, machineCopperPanel, machineRedHeader, sandBrewer, glowingSand, hopper1, hopper2, baristaPerson, baristaSign);
+    [barCounter, barTop, machineBody, machineCopperPanel, sandBrewer, baristaSign].forEach(m => {
       registerInteractable(m, "☕ VIP Kahve Makinesini Kullan — İstediğiniz Kahveyi Seçip İçin", () => openCoffeeModal());
     });
 
     // ----------------------------------------------------------------------------
     // BÖLÜM 5: HABER STÜDYOSUNUN GÖRKEMLİ GERÇEKÇİ ÇİFT KANATLI KAPISI (Z = -1.8)
     // ----------------------------------------------------------------------------
-    // Stüdyo Ayırıcı Duvarı (Ortada Görkemli Kapı Açıklığı: X = -2.4 .. +2.4)
     addWall(10.0, 5.2, 0.45, -7.4, 2.6, -1.8);
     addWall(10.0, 5.2, 0.45, 7.4, 2.6, -1.8);
     addWall(4.8, 1.2, 0.48, 0, 4.6, -1.8, darkPanelMat);
 
-    // Altın-Mermer Görkemli Stüdyo Kapı Sövesi
     const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.55, 4.2, 0.65), goldMat);
     pillarL.position.set(-2.45, 2.1, -1.8);
     const pillarR = new THREE.Mesh(new THREE.BoxGeometry(0.55, 4.2, 0.65), goldMat);
     pillarR.position.set(2.45, 2.1, -1.8);
     scene.add(pillarL, pillarR);
 
-    // Kırmızı Işıklı "ON AIR — HABER GLOBAL ANA HABER STÜDYOSU" Tabelası
     const onAirSign = new THREE.Mesh(
       new THREE.PlaneGeometry(4.6, 0.85),
       new THREE.MeshBasicMaterial({ map: makeSignTexture("🔴 ON AIR / CANLI YAYIN — ANA HABER STÜDYOSU", "KAPIDAN İÇERİ GİRMEK İÇİN KAPIYA VEYA BUTONA TIKLAYIN", "#e51919", "#070b14") })
@@ -1152,7 +1614,6 @@
     onAirSign.position.set(0, 4.45, -1.52);
     scene.add(onAirSign);
 
-    // Görkemli Çift Kanatlı Akustik Stüdyo Kapıları (Menteşe Pivot Grupları)
     const studioDoorPivotL = new THREE.Group();
     studioDoorPivotL.position.set(-2.2, 0, -1.8);
     const studioDoorPivotR = new THREE.Group();
@@ -1198,21 +1659,20 @@
     // ----------------------------------------------------------------------------
     // BÖLÜM 6: CANLI ANA HABER STÜDYOSU (Z = -2.2 .. -22.0)
     // ----------------------------------------------------------------------------
-    // Dev 3D Canlı LED Video Duvarı (THREE.VideoTexture — Gerçek Charon Sesli Yayın!)
     const videoTexture = new THREE.VideoTexture(studioVideo);
     videoTexture.minFilter = THREE.LinearFilter;
     videoTexture.magFilter = THREE.LinearFilter;
     videoTexture.format = THREE.RGBFormat;
 
-    const ledWallFrame = new THREE.Mesh(new THREE.BoxGeometry(12.6, 4.5, 0.35), goldMat);
-    ledWallFrame.position.set(0, 2.55, -19.8);
+    const ledWallFrame = new THREE.Mesh(new THREE.BoxGeometry(10.2, 3.85, 0.28), goldMat);
+    ledWallFrame.position.set(0, 2.55, -18.05);
     scene.add(ledWallFrame);
 
     const ledWallScreen = new THREE.Mesh(
-      new THREE.PlaneGeometry(12.0, 4.1),
+      new THREE.PlaneGeometry(9.8, 3.55),
       new THREE.MeshBasicMaterial({ map: videoTexture })
     );
-    ledWallScreen.position.set(0, 2.55, -19.6);
+    ledWallScreen.position.set(0, 2.55, -17.88);
     scene.add(ledWallScreen);
 
     registerInteractable(ledWallScreen, "📺 Canlı Haber Global TV Yayını (Sesi Aç/Kapat veya Sonraki Bültene Geç)", () => {
@@ -1231,13 +1691,16 @@
       }
     });
 
-    // Kavisli Işıklı 3D Haber Global Spiker Masası (Anchor Desk — Z = -13.5)
+    // Kavisli Işıklı 3D Haber Global Spiker Masası + Başspiker 3D Karakteri (Anchor Desk — Z = -13.5)
     const deskGroup = new THREE.Group();
     deskGroup.position.set(0, 0, -13.5);
-    scene.add(deskGroup);
+    fallbackFurnitureGroup.add(deskGroup);
 
-    const deskPodium = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.4, 0.18, 48), darkPanelMat);
-    deskPodium.position.y = 0.09;
+    const deskPodium = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.6, 0.16, 48), darkPanelMat);
+    deskPodium.position.y = 0.08;
+    const deskPodiumRim = new THREE.Mesh(new THREE.TorusGeometry(3.52, 0.035, 12, 48), redGlowMat);
+    deskPodiumRim.rotation.x = Math.PI / 2;
+    deskPodiumRim.position.y = 0.16;
     const deskBase = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.25, 0.95, 40, 1, false, -Math.PI * 0.65, Math.PI * 1.3), darkPanelMat);
     deskBase.position.y = 0.56;
     const deskRedStripe = new THREE.Mesh(new THREE.CylinderGeometry(2.22, 2.22, 0.16, 40, 1, false, -Math.PI * 0.65, Math.PI * 1.3), redGlowMat);
@@ -1245,50 +1708,68 @@
     const deskTop = new THREE.Mesh(new THREE.CylinderGeometry(2.35, 2.35, 0.08, 40, 1, false, -Math.PI * 0.68, Math.PI * 1.36), goldMat);
     deskTop.position.y = 1.06;
 
-    // Spiker Masası Ön HABER GLOBAL Tabelası
+    [-0.55, 0.55].forEach((ax, aIdx) => {
+      const anchorChair = buildExecutiveChair(leatherMat);
+      anchorChair.position.set(ax, 0.16, -0.55);
+      const anchorFig = buildPersonFigure(aIdx === 0 ? 0x0f172a : 0x1e293b, 0xe51919, true);
+      anchorFig.position.set(ax, 0.18, -0.52);
+      deskGroup.add(anchorChair, anchorFig);
+    });
+    deskGroup.add(deskPodium, deskPodiumRim, deskBase, deskRedStripe, deskTop);
+
     const deskFrontSign = new THREE.Mesh(
       new THREE.PlaneGeometry(2.8, 0.55),
       new THREE.MeshBasicMaterial({ map: makeSignTexture("HABER GLOBAL", "ANA HABER MERKEZİ • CANLI", "#e51919", "#070c18", 512, 128) })
     );
-    deskFrontSign.position.set(0, 0.62, 2.24);
-    deskGroup.add(deskPodium, deskBase, deskRedStripe, deskTop, deskFrontSign);
+    deskFrontSign.position.set(0, 0.62, -11.18);
+    scene.add(deskFrontSign);
 
-    // 3 Adet Profesyonel Broadcast Stüdyo Kamerası (Z = -8.5)
-    [-3.2, 0, 3.2].forEach((camX, idx) => {
-      const camGroup = new THREE.Group();
+    // 3 Adet Yüksek Detaylı Teleprompterlı Broadcast Stüdyo Kamerası (Z = -8.5)
+    [-3.2, 0, 3.2].forEach((camX) => {
+      const camGroup = buildPedestalBroadcastCamera();
       camGroup.position.set(camX, 0, -8.5);
       camGroup.lookAt(0, 1.35, -13.5);
-      const tripod = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.42, 1.45, 16), darkPanelMat);
-      tripod.position.y = 0.72;
-      const camBox = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.38, 0.75), chromeMat);
-      camBox.position.y = 1.55;
-      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.35, 20), darkPanelMat);
-      lens.rotation.x = Math.PI / 2;
-      lens.position.set(0, 1.55, 0.48);
-      const tallyLight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.06), redGlowMat);
-      tallyLight.position.set(0, 1.78, 0.32);
-      camGroup.add(tripod, camBox, lens, tallyLight);
-      scene.add(camGroup);
+      fallbackFurnitureGroup.add(camGroup);
     });
 
     // ----------------------------------------------------------------------------
     // BÖLÜM 7: HAKAN KARADAĞ MAKAM ODASI & ÖZEL RÖPORTAJ BAŞVURU MASASI (X = -14.5, Z = -12.5)
     // ----------------------------------------------------------------------------
+    const officeGroup = new THREE.Group();
+    officeGroup.position.set(-14.5, 0, -12.5);
+    fallbackFurnitureGroup.add(officeGroup);
+
     const officeDesk = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.88, 1.6), mahoganyMat);
-    officeDesk.position.set(-14.5, 0.44, -12.5);
-    scene.add(officeDesk);
+    officeDesk.position.y = 0.44;
     const officeGoldTrim = new THREE.Mesh(new THREE.BoxGeometry(3.48, 0.08, 1.68), goldMat);
-    officeGoldTrim.position.set(-14.5, 0.90, -12.5);
-    scene.add(officeGoldTrim);
+    officeGoldTrim.position.y = 0.90;
+    const bossChair = buildExecutiveChair(new THREE.MeshStandardMaterial({ color: 0x7c1d1d, roughness: 0.28 }));
+    bossChair.position.set(0, 0, -1.25);
+    const guestChair1 = buildExecutiveChair(leatherMat);
+    guestChair1.position.set(-0.85, 0, 1.35);
+    guestChair1.rotation.y = Math.PI;
+    const guestChair2 = buildExecutiveChair(leatherMat);
+    guestChair2.position.set(0.85, 0, 1.35);
+    guestChair2.rotation.y = Math.PI;
+    const bookshelf = new THREE.Mesh(new THREE.BoxGeometry(5.6, 4.1, 0.48), mahoganyMat);
+    bookshelf.position.set(0, 2.05, -2.85);
+    officeGroup.add(officeDesk, officeGoldTrim, bossChair, guestChair1, guestChair2, bookshelf);
+
+    const officeHitbox = new THREE.Mesh(
+      new THREE.BoxGeometry(3.8, 1.5, 2.2),
+      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0, depthWrite: false })
+    );
+    officeHitbox.position.set(-14.5, 0.75, -12.5);
+    scene.add(officeHitbox);
 
     const officeSign = new THREE.Mesh(
-      new THREE.PlaneGeometry(5.6, 1.25),
+      new THREE.PlaneGeometry(5.8, 1.25),
       new THREE.MeshBasicMaterial({ map: makeSignTexture("✒️ HAKAN KARADAĞ — İMTİYAZ SAHİBİ MAKAMI", "🎙️ ÖZEL RÖPORTAJ TALEBİ BIRAKMAK İÇİN MASAYA TIKLAYIN", "#f5b914", "#081020") })
     );
-    officeSign.position.set(-14.5, 2.85, -15.2);
+    officeSign.position.set(-14.5, 3.25, -15.1);
     scene.add(officeSign);
 
-    [officeDesk, officeGoldTrim, officeSign].forEach(m => {
+    [officeDesk, officeGoldTrim, officeHitbox, officeSign].forEach(m => {
       registerInteractable(m, "🎙️ Hakan Karadağ Makam Masası — Özel Röportaj Talebi Bırak", () => openInterviewModal());
     });
 
@@ -1560,24 +2041,39 @@
     }
     animate();
 
-    // Blender 4.2 High-Poly (37,196 Vertex / 17 PBR Materyal) Stüdyo, Barista & Ödül GLB Modelini Yükle
+    // Blender 4.2 Tam 7 Bölgeli 90,178-Vertex / 22-PBR Materyal Mimari Kompleks GLB Modelini Yükle
     if (THREE.GLTFLoader) {
       const gltfLoader = new THREE.GLTFLoader();
       gltfLoader.load(
-        "https://raw.githubusercontent.com/Fatihan0135/haber-global-tv/main/models/haber_global_studio_props.glb",
+        "https://raw.githubusercontent.com/Fatihan0135/haber-global-tv/main/models/haber_global_full_hq_complex.glb",
         (gltf) => {
           const modelRoot = gltf.scene;
-          modelRoot.position.set(0, 0.02, -13.5);
+          modelRoot.position.set(0, 0.01, 0);
+          // Z-fighting önlemek için geçici yedek mobilyaları gizle (Blender 4.2 90,178-vertex kompleksi devralır!)
+          fallbackFurnitureGroup.visible = false;
+          [barCounter, barTop, machineBody, machineCopperPanel, machineRedHeader, sandBrewer, glowingSand, hopper1, hopper2, baristaPerson].forEach(m => { if (m) m.visible = false; });
+
           modelRoot.traverse((child) => {
             if (child.isMesh) {
+              const nm = (child.name || (child.parent && child.parent.name) || "").toLowerCase();
+              if (nm.includes("zone0")) {
+                child.visible = false;
+                return;
+              }
               child.castShadow = true;
               child.receiveShadow = true;
-              if (child.name && child.name.toLowerCase().includes("coffee")) {
-                registerInteractable(child, "☕ VIP Barista & Közde Türk Kahvesi Makinesi — Kahve Seçmek İçin Tıklayın", () => openCoffeeModal());
-              } else if (child.name && child.name.toLowerCase().includes("trophy")) {
-                registerInteractable(child, "🏆 Haber Global Uluslararası Basın Ödülü — İncelemek İçin Tıklayın", () => {
-                  openInfoModal("🏆 HABER GLOBAL ŞEREF GALERİSİ", "Uluslararası Basın & Habercilik Ödülü", "Blender 4.2 CAD/BMesh yüksek detaylı ödül vitrini.");
+              if (nm.includes("zone1") || nm.includes("reception")) {
+                registerInteractable(child, "🏛️ Giriş Danışma Bankosu & Panoramik Asansör — Özel Röportaj Başvurusu İçin Tıklayın", () => openInterviewModal());
+              } else if (nm.includes("zone2") || nm.includes("trophy")) {
+                registerInteractable(child, "🏆 Haber Global Uluslararası Basın Ödülleri — İncelemek İçin Tıklayın", () => {
+                  openInfoModal("🏆 HABER GLOBAL ŞEREF GALERİSİ", "Uluslararası Basın & Habercilik Ödülleri", "100'den fazla egemen devlette parlamenter demokrasi, ekonomi ve cephe gelişmelerini 24 saat sesli TV bültenleriyle yayınlayan Haber Global'in uluslararası basın ödülleri koleksiyonu.");
                 });
+              } else if (nm.includes("zone3") || nm.includes("diplomatic")) {
+                registerInteractable(child, "🌍 17 Ülke Temsilcileri & Diplomasi Konseyi — Zirve / Röportaj Talep Etmek İçin Tıklayın", () => openInterviewModal());
+              } else if (nm.includes("zone4") || nm.includes("barista") || nm.includes("lounge")) {
+                registerInteractable(child, "☕ VIP Barista & Kumda Türk Kahvesi İstasyonu — İstediğiniz Kahveyi Seçip İçmek İçin Tıklayın", () => openCoffeeModal());
+              } else if (nm.includes("zone7") || nm.includes("executive") || nm.includes("karadag")) {
+                registerInteractable(child, "✒️ Hakan Karadağ İmtiyaz Sahibi Makamı — Özel Röportaj Talebi Bırakmak İçin Tıklayın", () => openInterviewModal());
               }
             }
           });
