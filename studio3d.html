@@ -547,8 +547,9 @@
   <!-- GİZLİ VİDEO KAYNAĞI (3D Stüdyo Dev LED Ekranı İçin) -->
   <video id="studioBroadcastVideo" crossorigin="anonymous" playsinline loop style="display:none;"></video>
 
-  <!-- THREE.JS -->
+  <!-- THREE.JS & GLTFLOADER (Blender 4.2 High-Poly 37,196-Vertex .GLB Stüdyo & Barista Modelleri İçin) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script>
     // ============================================================================
     // 1. WEB AUDIO SYNTHESIZER (Asansör, Hidrolik Kapı, Kahve Makinesi, Yudum Sesleri)
@@ -1558,6 +1559,34 @@
       renderer.render(scene, camera);
     }
     animate();
+
+    // Blender 4.2 High-Poly (37,196 Vertex / 17 PBR Materyal) Stüdyo, Barista & Ödül GLB Modelini Yükle
+    if (THREE.GLTFLoader) {
+      const gltfLoader = new THREE.GLTFLoader();
+      gltfLoader.load(
+        "https://raw.githubusercontent.com/Fatihan0135/haber-global-tv/main/models/haber_global_studio_props.glb",
+        (gltf) => {
+          const modelRoot = gltf.scene;
+          modelRoot.position.set(0, 0.02, -13.5);
+          modelRoot.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+              if (child.name && child.name.toLowerCase().includes("coffee")) {
+                registerInteractable(child, "☕ VIP Barista & Közde Türk Kahvesi Makinesi — Kahve Seçmek İçin Tıklayın", () => openCoffeeModal());
+              } else if (child.name && child.name.toLowerCase().includes("trophy")) {
+                registerInteractable(child, "🏆 Haber Global Uluslararası Basın Ödülü — İncelemek İçin Tıklayın", () => {
+                  openInfoModal("🏆 HABER GLOBAL ŞEREF GALERİSİ", "Uluslararası Basın & Habercilik Ödülü", "Blender 4.2 CAD/BMesh yüksek detaylı ödül vitrini.");
+                });
+              }
+            }
+          });
+          scene.add(modelRoot);
+        },
+        undefined,
+        () => {}
+      );
+    }
 
     // URL Parametreleriyle Otomatik Oda veya Röportaj Formu Açılışı
     const initRoom = urlParams.get("room");
