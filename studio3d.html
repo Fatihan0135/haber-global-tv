@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>HABER GLOBAL TV | 3D Kanal Binası & Canlı Yayın Stüdyosu</title>
+  <style>
+    :root {
+      --bg-dark: #060911;
+      --panel: rgba(11, 17, 29, 0.90);
+      --border: rgba(245, 185, 20, 0.35);
+      --red: #e51919;
+      --gold: #f5b914;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body, html {
+      width: 100%; height: 100%; overflow: hidden;
+      background: #04070d;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+    }
+    #canvas3d {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      display: block;
+      cursor: grab;
+    }
+    #canvas3d:active { cursor: grabbing; }
+
+    /* Üst HUD Bar */
+    .hud-top {
+      position: fixed; top: 12px; left: 12px; right: 12px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px;
+      background: linear-gradient(90deg, rgba(10,15,26,0.94) 0%, rgba(18,26,44,0.90) 100%);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-bottom: 3px solid var(--red);
+      border-radius: 12px;
+      padding: 10px 18px;
+      z-index: 30;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 12px 35px rgba(0,0,0,0.65);
+    }
+    .brand-left {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .hg-logo {
+      background: linear-gradient(135deg, #ff1e1e 0%, #b30000 100%);
+      color: #fff; font-weight: 900; font-size: 15px;
+      letter-spacing: 1px; padding: 7px 13px; border-radius: 6px;
+      box-shadow: 0 0 18px rgba(229,25,25,0.5);
+    }
+    .room-indicator {
+      display: flex; flex-direction: column;
+    }
+    .room-title {
+      font-size: 14px; font-weight: 800; color: var(--gold);
+      letter-spacing: 0.4px;
+    }
+    .room-sub {
+      font-size: 11px; color: var(--muted);
+    }
+    .hud-actions {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
+    }
+    .hud-btn {
+      background: rgba(24, 35, 56, 0.92);
+      color: #f1f5f9;
+      border: 1px solid rgba(255,255,255,0.16);
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.18s;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .hud-btn:hover, .hud-btn.active {
+      background: rgba(229, 25, 25, 0.88);
+      border-color: var(--gold);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .hud-btn.gold {
+      background: linear-gradient(135deg, #f5b914 0%, #c88a04 100%);
+      color: #090d16;
+      border-color: #ffe07d;
+      font-weight: 900;
+    }
+    .hud-btn.gold:hover {
+      background: linear-gradient(135deg, #ffd24c 0%, #dca00e 100%);
+      color: #000;
+    }
+
+    /* Sol Hızlı Navigasyon & Asansör Kat Paneli */
+    .nav-sidebar {
+      position: fixed; left: 14px; top: 82px;
+      display: flex; flex-direction: column; gap: 7px;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-left: 3px solid var(--gold);
+      border-radius: 12px;
+      padding: 12px;
+      width: 245px;
+      z-index: 25;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+    }
+    .nav-header {
+      font-size: 11px; font-weight: 900; color: var(--gold);
+      letter-spacing: 0.8px; text-transform: uppercase;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 6px; margin-bottom: 2px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .floor-btn {
+      background: rgba(20, 30, 48, 0.85);
+      color: #e2e8f0;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 12px; font-weight: 700;
+      text-align: left;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: all 0.16s;
+    }
+    .floor-btn:hover, .floor-btn.active {
+      background: rgba(229, 25, 25, 0.25);
+      border-color: var(--gold);
+      color: #fff;
+    }
+    .floor-badge {
+      background: #0f172a;
+      color: var(--gold);
+      border: 1px solid rgba(245,185,20,0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-family: monospace;
+      font-weight: 900;
+    }
+
+    /* Alt Kontroller & Etkileşim İpucu */
+    .bottom-hud {
+      position: fixed; bottom: 16px; left: 50%;
+      transform: translateX(-50%);
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(9, 14, 24, 0.92);
+      border: 1px solid rgba(245,185,20,0.35);
+      border-radius: 999px;
+      padding: 9px 20px;
+      z-index: 25;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+      white-space: nowrap;
+    }
+    .key-pill {
+      background: #1e293b; color: var(--gold);
+      border: 1px solid rgba(245,185,20,0.4);
+      padding: 3px 8px; border-radius: 5px;
+      font-size: 11px; font-weight: 800;
+    }
+    .interact-prompt {
+      position: fixed; bottom: 72px; left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, rgba(229,25,25,0.95) 0%, rgba(155,10,10,0.95) 100%);
+      color: #fff;
+      border: 2px solid var(--gold);
+      padding: 10px 22px;
+      border-radius: 10px;
+      font-size: 14px; font-weight: 900;
+      cursor: pointer;
+      z-index: 28;
+      box-shadow: 0 8px 28px rgba(229,25,25,0.5);
+      display: none;
+      animation: bouncePrompt 1.4s infinite;
+    }
+    @keyframes bouncePrompt {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(-4px); }
+    }
+
+    /* Elde Tutulan Kahve Fincanı HUD */
+    .coffee-hand-hud {
+      position: fixed; right: 20px; bottom: 20px;
+      background: linear-gradient(145deg, rgba(20,28,44,0.95), rgba(10,15,25,0.95));
+      border: 2px solid var(--gold);
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: none;
+      flex-direction: column; gap: 8px;
+      width: 250px;
+      z-index: 28;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.75);
+    }
+    .coffee-title {
+      font-size: 13px; font-weight: 900; color: var(--gold);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .coffee-bar-bg {
+      width: 100%; height: 8px; background: #1e293b;
+      border-radius: 99px; overflow: hidden;
+    }
+    .coffee-bar-fill {
+      height: 100%; width: 100%;
+      background: linear-gradient(90deg, #d97706, #fbbf24);
+      transition: width 0.3s;
+    }
+
+    /* Modal Pencereler (Röportaj Talebi, Kahve Makinesi, Ödül & Temsilci Detayı, Asansör) */
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(3, 6, 12, 0.78);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center; justify-content: center;
+      z-index: 60;
+      padding: 16px;
+    }
+    .modal-card {
+      background: linear-gradient(180deg, #111a2e 0%, #0a101d 100%);
+      border: 2px solid var(--gold);
+      border-radius: 16px;
+      max-width: 620px; width: 100%;
+      max-height: 90vh; overflow-y: auto;
+      padding: 24px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.85);
+      position: relative;
+      user-select: text;
+    }
+    .modal-close {
+      position: absolute; top: 14px; right: 16px;
+      background: #1e293b; color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+      width: 32px; height: 32px; border-radius: 8px;
+      font-weight: 900; cursor: pointer;
+    }
+    .modal-tag {
+      display: inline-block;
+      background: rgba(229,25,25,0.2);
+      border: 1px solid var(--red);
+      color: #ff8080;
+      font-size: 11px; font-weight: 800;
+      padding: 3px 10px; border-radius: 99px;
+      margin-bottom: 8px;
+    }
+    .modal-title {
+      font-size: 21px; font-weight: 900; color: #fff;
+      margin-bottom: 8px;
+    }
+    .modal-desc {
+      font-size: 14px; color: #cbd5e1; line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    /* Form Elemanları */
+    .form-group { margin-bottom: 13px; }
+    .form-label {
+      display: block; font-size: 12px; font-weight: 800;
+      color: var(--gold); margin-bottom: 5px;
+    }
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      background: #090e1a;
+      color: #fff;
+      border: 1px solid #2b3b59;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .form-textarea { min-height: 95px; resize: vertical; }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none; border-color: var(--gold);
+    }
+
+    /* Kahve Izgarası */
+    .coffee-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .coffee-option {
+      background: #141f35;
+      border: 1px solid #2b3d63;
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      transition: all 0.16s;
+      text-align: center;
+    }
+    .coffee-option:hover {
+      border-color: var(--gold);
+      background: #1c2c4c;
+      transform: translateY(-2px);
+    }
+    .coffee-icon { font-size: 28px; margin-bottom: 6px; }
+    .coffee-name { font-size: 13px; font-weight: 800; color: #fff; }
+    .coffee-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    /* Asansör Kat Geçiş Ekranı */
+    .elevator-overlay {
+      position: fixed; inset: 0;
+      background: radial-gradient(circle, rgba(16,24,40,0.96) 0%, #04070d 100%);
+      z-index: 80;
+      display: none;
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px;
+    }
+    .elev-led {
+      background: #090d16;
+      border: 3px solid var(--gold);
+      border-radius: 14px;
+      padding: 18px 36px;
+      font-family: monospace;
+      font-size: 42px;
+      font-weight: 900;
+      color: var(--red);
+      text-shadow: 0 0 20px rgba(229,25,25,0.8);
+      letter-spacing: 3px;
+    }
+    .elev-status {
+      font-size: 16px; font-weight: 800; color: var(--gold);
+    }
+
+    /* Bildirim Toast */
+    .toast-msg {
+      position: fixed; top: 82px; right: 18px;
+      background: rgba(15, 23, 42, 0.95);
+      border-left: 4px solid var(--gold);
+      border-radius: 8px;
+      padding: 12px 18px;
+      color: #fff; font-size: 13px; font-weight: 700;
+      z-index: 90;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      .nav-sidebar { width: 185px; padding: 8px; top: 96px; }
+      .bottom-hud { font-size: 11px; padding: 7px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="canvas3d"></canvas>
+
+  <!-- ÜST BAR -->
+  <header class="hud-top">
+    <div class="brand-left">
+      <div class="hg-logo">HABER GLOBAL 3D PLAZA</div>
+      <div class="room-indicator">
+        <div class="room-title" id="currentRoomTitle">🏛️ ZEMİN KAT — GİRİŞ LOBİSİ & PANORAMİK ASANSÖR</div>
+        <div class="room-sub" id="currentRoomSub">Fare ile etrafa bakın • WASD / Ok tuşları veya sol menüyle odaları gezin • Nesnelere tıklayın</div>
+      </div>
+    </div>
+
+    <div class="hud-actions">
+      <button class="hud-btn gold" onclick="openInterviewModal()">🎙️ RÖPORTAJ TALEBİ BIRAK</button>
+      <button class="hud-btn" onclick="openCoffeeModal()">☕ KAHVE MAKİNESİ</button>
+      <button class="hud-btn" onclick="toggleStudioDoor()" id="doorBtn">🚪 STÜDYO KAPISINI AÇ/KAPAT</button>
+      <button class="hud-btn" onclick="toggleStudioAudio()" id="studioAudioBtn">🔊 STÜDYO SESİ AÇIK</button>
+      <a href="index.html" class="hud-btn" style="text-decoration:none;">📺 KLASİK TV OYNATICIYA DÖN</a>
+    </div>
+  </header>
+
+  <!-- SOL ASANSÖR & ODA GEZİNTİ PANELİ -->
+  <aside class="nav-sidebar">
+    <div class="nav-header">
+      <span>🛗 ASANSÖR & KAT PLANI</span>
+      <span style="color:#ff6b6b;">CANLI 3D</span>
+    </div>
+    <button class="floor-btn active" id="nav-lobby" onclick="rideElevator('lobby')">
+      <span>🛗 Giriş & Asansör Lobisi</span>
+      <span class="floor-badge">KAT G</span>
+    </button>
+    <button class="floor-btn" id="nav-awards" onclick="rideElevator('awards')">
+      <span>🏆 Ödüller & Şeref Koridoru</span>
+      <span class="floor-badge">KAT 1</span>
+    </button>
+    <button class="floor-btn" id="nav-studio-door" onclick="rideElevator('studio_door')">
+      <span>🚪 Görkemli Stüdyo Kapısı</span>
+      <span class="floor-badge">KAT 1</span>
+    </button>
+    <button class="floor-btn" id="nav-studio" onclick="rideElevator('studio')">
+      <span>📺 Canlı Ana Haber Stüdyosu</span>
+      <span class="floor-badge">ON AIR</span>
+    </button>
+    <button class="floor-btn" id="nav-diplomacy" onclick="rideElevator('diplomacy')">
+      <span>🌍 17 Ülke Temsilcileri Odası</span>
+      <span class="floor-badge">KAT 2</span>
+    </button>
+    <button class="floor-btn" id="nav-lounge" onclick="rideElevator('lounge')">
+      <span>🛋️ Misafir & Kahve Salonu</span>
+      <span class="floor-badge">VIP</span>
+    </button>
+    <button class="floor-btn" id="nav-office" onclick="rideElevator('office')">
+      <span>✒️ Makam & Röportaj Masası</span>
+      <span class="floor-badge">KAT 3</span>
+    </button>
+  </aside>
+
+  <!-- ETKİLEŞİM BUTONU -->
+  <button class="interact-prompt" id="interactPromptBtn"></button>
+
+  <!-- ELDE KAHVE HUD -->
+  <div class="coffee-hand-hud" id="coffeeHandHud">
+    <div class="coffee-title" id="coffeeHandTitle">☕ Közde Türk Kahvesi</div>
+    <div style="font-size:11px;color:#cbd5e1;" id="coffeeHandDesc">Dumanı üstünde, çifte kavrulmuş Haber Global VIP ikramı.</div>
+    <div class="coffee-bar-bg"><div class="coffee-bar-fill" id="coffeeBarFill"></div></div>
+    <div style="display:flex;gap:6px;">
+      <button class="hud-btn gold" style="flex:1;justify-content:center;" onclick="sipCoffee()">☕ Yudum Al</button>
+      <button class="hud-btn" onclick="openCoffeeModal()">Yeni İçecek</button>
+    </div>
+  </div>
+
+  <!-- ALT KONTROL BİLGİSİ -->
+  <div class="bottom-hud">
+    <span><span class="key-pill">W A S D</span> veya <span class="key-pill">OK TUŞLARI</span> Yürü</span>
+    <span><span class="key-pill">SOL TIK + SÜRÜKLE</span> Etrafa Bak</span>
+    <span><span class="key-pill">NESNELERE TIKLA</span> Etkileşime Geç (Asansör / Kapı / Ödüller / Kahve / Röportaj)</span>
+  </div>
+
+  <!-- ASANSÖR GEÇİŞ EKRANI -->
+  <div class="elevator-overlay" id="elevatorOverlay">
+    <div style="font-size:13px;color:#94a3b8;letter-spacing:2px;font-weight:800;">HABER GLOBAL PANORAMİK ASANSÖR</div>
+    <div class="elev-led" id="elevLedText">KAT G ▴ KAT 1</div>
+    <div class="elev-status" id="elevStatusText">Çelik kapılar kapanıyor, kata çıkılıyor...</div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast-msg" id="toastMsg"></div>
+
+  <!-- MODAL 1: ÖZEL RÖPORTAJ TALEBİ BIRAK -->
+  <div class="modal-backdrop" id="interviewModal">
+    <div class="modal-card">
+      <button class="modal-close" onclick="closeModals()">✕</button>
+      <span class="modal-tag">🎙️ HABER GLOBAL AÇIK DİPLOMASİ KÜRSÜSÜ</span>
+      <div class="modal-title">Özel Röportaj & Zirve Haber Talebi Bırak</div>
+      <div class="modal-desc">
+        Devletinizin dış politika vizyonunu, partinizin seçim beyannamesini, ekonomik kalkınma projelerinizi veya cephe zaferlerinizi
+        <strong>ücretsiz ve resmi portrenizle</strong> özel Haber Global TV bültenine dönüştürüyoruz.
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">OYUNCU / DEVLET ADAMI ADINIZ:</label>
+        <input type="text" id="reqName" class="form-input" placeholder="Örn: Cumhurbaşkanı / Parti Lideri / Komutan Adı" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">TEMSİL ETTİĞİNİZ DEVLET / PARTİ / KURUM:</label>
+        <input type="text" id="reqState" class="form-input" placeholder="Örn: Kafkas Türk Cumhuriyeti / Doğru Yol Partisi / Unione Milan" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">RÖPORTAJ KONUSU & KATEGORİSİ:</label>
+        <select id="reqCategory" class="form-select">
+          <option value="Devlet Zirvesi & Dış Politika">🏛️ Devlet Zirvesi & Dış Politika Deklarasyonu</option>
+          <option value="Parti & Parlamento Gündemi">🗳️ Parti Vizyonu, Seçim & Parlamento Gündemi</option>
+          <option value="Ekonomi, Vergi & Sanayi Hamlesi">📈 Ekonomi, Gümrük, Vergi & Bölgesel Kalkınma</option>
+          <option value="Cephe, Savunma & Askeri Zafer">⚔️ Cephe, Savunma & Askeri Harekat Bülteni</option>
+          <option value="Uluslararası Özel Demeç">🌐 Uluslararası Kamuoyuna Özel Açıklama</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">HABERDE YER ALMASINI İSTEDİĞİNİZ DEMEÇ & DETAYLAR:</label>
+        <textarea id="reqMessage" class="form-textarea" placeholder="Haber merkezimizin bültende ve TV yayınında işlemesini istediğiniz ana mesajınızı buraya yazın..."></textarea>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;">
+        <button class="hud-btn gold" style="padding:11px 18px;font-size:13px;" onclick="submitInterviewRequest()">
+          ✅ RÖPORTAJ TALEBİNİ KAYDET & PROTOKOL FİŞİ OLUŞTUR
+        </button>
+        <a href="https://parlamentum.org" target="_blank" class="hud-btn" style="padding:11px 16px;text-decoration:none;">
+          📩 PARLAMENTUM'DA HAKAN KARADAĞ'A İLET
+        </a>
+      </div>
+
+      <div id="interviewResultBox" style="display:none;margin-top:16px;background:#071224;border:1px solid #22c55e;border-radius:10px;padding:14px;">
+        <div style="color:#4ade80;font-weight:900;font-size:13px;margin-bottom:6px;" id="reqTicketHeader"></div>
+        <div style="font-size:12px;color:#e2e8f0;white-space:pre-wrap;background:#040811;padding:10px;border-radius:6px;border:1px solid #1e293b;" id="reqTicketBody"></div>
+        <button class="hud-btn" style="margin-top:8px;" onclick="copyInterviewTicket()">📋 Resmi Başvuru Metnini Kopyala</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: VIP BARİSTA KAHVE MAKİNESİ -->
+  <div class="modal-backdrop" id="coffeeModal">
+    <div class="modal-card">
+      <button class="modal-close" onclick="closeModals()">✕</button>
+      <span class="modal-tag">☕ HABER GLOBAL VIP MİSAFİR & BEKLEME SALONU</span>
+      <div class="modal-title">İtalyan Barista & Közde Türk Kahvesi İstasyonu</div>
+      <div class="modal-desc">
+        Haber Global yayın stüdyomuza ve misafir ağırlama salonumuza hoş geldiniz! İstediğiniz sıcak veya soğuk ikramı seçin;
+        kahveniz taze çekilmiş çekirdeklerle hazırlanıp elinize servis edilsin:
+      </div>
+
+      <div class="coffee-grid">
+        <div class="coffee-option" onclick="brewCoffee('Közde Köpüklü Türk Kahvesi', 'Çifte kavrulmuş, çifte lokumlu ve soğuk su ikramlı geleneksel Türk kahvesi.')">
+          <div class="coffee-icon">☕</div>
+          <div class="coffee-name">Közde Türk Kahvesi</div>
+          <div class="coffee-sub">Bol Köpüklü & Lokumlu</div>
+        </div>
+        <div class="coffee-option" onclick="brewCoffee('İtalyan Double Espresso', '%100 Arabica çekirdeklerinden yüksek basınçla çekilmiş yoğun kremalı espresso.')">
+          <div class="coffee-icon">⚡</div>
+          <div class="coffee-name">Double Espresso</div>
+          <div class="coffee-sub">Yoğun Krema & Enerji</div>
+        </div>
+        <div class="coffee-option" onclick="brewCoffee('Cappuccino / Caffè Latte', 'İpeksi sıcak süt köpüğü ve taze espresso harmanı.')">
+          <div class="coffee-icon">🥛</div>
+          <div class="coffee-name">Cappuccino / Latte</div>
+          <div class="coffee-sub">İpeksi Süt Köpüklü</div>
+        </div>
+        <div class="coffee-option" onclick="brewCoffee('Belçika Çikolatalı Mocha', 'Sıcak Belçika çikolatası, taze espresso ve krema.')">
+          <div class="coffee-icon">🍫</div>
+          <div class="coffee-name">Sıcak Caffè Mocha</div>
+          <div class="coffee-sub">Belçika Çikolatalı</div>
+        </div>
+        <div class="coffee-option" onclick="brewCoffee('Buzlu Karamel Americano', 'Buz küpleri üzerinde ferahlatıcı soğuk kahve.')">
+          <div class="coffee-icon">🧊</div>
+          <div class="coffee-name">Iced Americano</div>
+          <div class="coffee-sub">Soğuk & Ferahlatıcı</div>
+        </div>
+        <div class="coffee-option" onclick="brewCoffee('İnce Belli Rize Çayı', 'Semaverde taze demlenmiş tavşan kanı Türk çayı.')">
+          <div class="coffee-icon">🍵</div>
+          <div class="coffee-name">Taze Rize Çayı</div>
+          <div class="coffee-sub">İnce Belli Bardakta</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: ÖDÜL VEYA ÜLKE TEMSİLCİSİ DETAY KARTI -->
+  <div class="modal-backdrop" id="infoModal">
+    <div class="modal-card">
+      <button class="modal-close" onclick="closeModals()">✕</button>
+      <span class="modal-tag" id="infoModalTag">🏆 HABER GLOBAL ŞEREF GALERİSİ</span>
+      <div class="modal-title" id="infoModalTitle"></div>
+      <div class="modal-desc" id="infoModalDesc"></div>
+      <div id="infoModalExtra" style="margin-top:12px;"></div>
+    </div>
+  </div>
+
+  <!-- GİZLİ VİDEO KAYNAĞI (3D Stüdyo Dev LED Ekranı İçin) -->
+  <video id="studioBroadcastVideo" crossorigin="anonymous" playsinline loop style="display:none;"></video>
+
+  <!-- THREE.JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    // ============================================================================
+    // 1. WEB AUDIO SYNTHESIZER (Asansör, Hidrolik Kapı, Kahve Makinesi, Yudum Sesleri)
+    // ============================================================================
+    let audioCtx = null;
+    function ensureAudioCtx() {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+      }
+      if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+    }
+
+    function playElevatorChime() {
+      try {
+        ensureAudioCtx();
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        // Ding-Dong (E5 -> C5)
+        [[659.25, 0, 0.45], [523.25, 0.28, 0.65]].forEach(([freq, start, dur]) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, now + start);
+          gain.gain.setValueAtTime(0.18, now + start);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + start + dur);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(now + start); osc.stop(now + start + dur);
+        });
+      } catch(e) {}
+    }
+
+    function playDoorHydraulicSound() {
+      try {
+        ensureAudioCtx();
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(95, now);
+        osc.frequency.linearRampToValueAtTime(52, now + 0.75);
+        gain.gain.setValueAtTime(0.14, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(now); osc.stop(now + 0.8);
+      } catch(e) {}
+    }
+
+    function playCoffeeBrewSound() {
+      try {
+        ensureAudioCtx();
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        const bufferSize = audioCtx.sampleRate * 1.2;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.6));
+        }
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = "bandpass";
+        filter.frequency.value = 1200;
+        const gain = audioCtx.createGain();
+        gain.gain.value = 0.16;
+        noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+        noise.start(now);
+      } catch(e) {}
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById("toastMsg");
+      el.textContent = msg;
+      el.style.display = "block";
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => { el.style.display = "none"; }, 4200);
+    }
+
+    // ============================================================================
+    // 2. CANLI HABER GLOBAL TV VİDEO DUVARI KAYNAĞI
+    // ============================================================================
+    const RAW_VIDEO_BASE = "https://raw.githubusercontent.com/Fatihan0135/haber-global-tv/main/videos/";
+    const studioVideo = document.getElementById("studioBroadcastVideo");
+    studioVideo.crossOrigin = "anonymous";
+    studioVideo.loop = true;
+    studioVideo.volume = 0.9;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialVideoFile = urlParams.get("v") || "hg_tr_1792428074.mp4";
+    studioVideo.src = RAW_VIDEO_BASE + initialVideoFile.replace(/[^a-zA-Z0-9._-]/g, "");
+    studioVideo.play().catch(() => {
+      studioVideo.muted = true;
+      studioVideo.play().catch(() => {});
+      document.getElementById("studioAudioBtn").textContent = "🔇 STÜDYO SESİNİ AÇ";
+    });
+
+    // Manifest'ten son bültenleri de yükle
+    let broadcastList = [];
+    fetch("https://raw.githubusercontent.com/Fatihan0135/haber-global-tv/main/manifest.json?t=" + Date.now())
+      .then(r => r.json())
+      .then(items => { if (Array.isArray(items)) broadcastList = items; })
+      .catch(() => {});
+
+    function toggleStudioAudio() {
+      ensureAudioCtx();
+      if (studioVideo.muted || studioVideo.paused) {
+        studioVideo.muted = false;
+        studioVideo.volume = 1.0;
+        studioVideo.play().catch(() => {});
+        document.getElementById("studioAudioBtn").textContent = "🔊 STÜDYO SESİ AÇIK";
+        showToast("🔊 Canlı Ana Haber Stüdyosu ses yayını açıldı.");
+      } else {
+        studioVideo.muted = true;
+        document.getElementById("studioAudioBtn").textContent = "🔇 STÜDYO SESİNİ AÇ";
+        showToast("🔇 Stüdyo sesi sessize alındı.");
+      }
+    }
+
+    // ============================================================================
+    // 3. THREE.JS SAHNE, PBR DOKU ÜRETİCİLERİ VE IŞIKLANDIRMA
+    // ============================================================================
+    const canvas = document.getElementById("canvas3d");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050811);
+    scene.fog = new THREE.FogExp2(0x050811, 0.012);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 160);
+    // Başlangıç konumu: Zemin Kat Giriş & Asansör Lobisi
+    const player = {
+      x: 0, y: 1.72, z: 16.5,
+      yaw: 0, pitch: -0.03,
+      targetX: null, targetZ: null, targetYaw: null,
+      inCup: false, coffeeLevel: 100
+    };
+
+    // Prosedürel Yüksek Çözünürlüklü PBR Mermer, Ahşap, Halı ve Canvas Yazı Dokuları
+    function makeMarbleTexture(bgHex, veinHex, repeatX, repeatY) {
+      const c = document.createElement("canvas");
+      c.width = 512; c.height = 512;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = bgHex;
+      ctx.fillRect(0, 0, 512, 512);
+      ctx.strokeStyle = veinHex;
+      for (let i = 0; i < 28; i++) {
+        ctx.lineWidth = 0.5 + Math.random() * 2.2;
+        ctx.beginPath();
+        let x = Math.random() * 512, y = 0;
+        ctx.moveTo(x, y);
+        while (y < 512) {
+          y += 24;
+          x += (Math.random() - 0.5) * 36;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      // Karo derz çizgileri
+      ctx.strokeStyle = "rgba(245,185,20,0.18)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(2, 2, 508, 508);
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(repeatX || 8, repeatY || 8);
+      return tex;
+    }
+
+    function makeSignTexture(title, subtitle, accentColor = "#e51919", bgColor = "#090f1d", width = 1024, height = 256) {
+      const c = document.createElement("canvas");
+      c.width = width; c.height = height;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = "#f5b914";
+      ctx.lineWidth = 8;
+      ctx.strokeRect(8, 8, width - 16, height - 16);
+      ctx.fillStyle = accentColor;
+      ctx.fillRect(16, 16, width - 32, 18);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 48px 'Segoe UI', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(title, width / 2, height * 0.52);
+      if (subtitle) {
+        ctx.fillStyle = "#f5b914";
+        ctx.font = "700 28px 'Segoe UI', Arial, sans-serif";
+        ctx.fillText(subtitle, width / 2, height * 0.78);
+      }
+      const tex = new THREE.CanvasTexture(c);
+      return tex;
+    }
+
+    const marbleFloorTex = makeMarbleTexture("#0c1322", "rgba(255,255,255,0.07)", 14, 18);
+    const whiteMarbleTex = makeMarbleTexture("#1a2438", "rgba(245,185,20,0.12)", 6, 6);
+
+    // Ana Materyaller
+    const floorMat = new THREE.MeshStandardMaterial({ map: marbleFloorTex, roughness: 0.18, metalness: 0.35 });
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x11192b, roughness: 0.42, metalness: 0.2 });
+    const darkPanelMat = new THREE.MeshStandardMaterial({ color: 0x090e1a, roughness: 0.3, metalness: 0.5 });
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xf5b914, roughness: 0.22, metalness: 0.88 });
+    const chromeMat = new THREE.MeshStandardMaterial({ color: 0xdbe4f0, roughness: 0.15, metalness: 0.92 });
+    const redGlowMat = new THREE.MeshBasicMaterial({ color: 0xe51919 });
+    const goldGlowMat = new THREE.MeshBasicMaterial({ color: 0xf5b914 });
+    const glassMat = new THREE.MeshPhysicalMaterial({
+      color: 0x99ccff, transparent: true, opacity: 0.28, roughness: 0.08, metalness: 0.1
+    });
+    const mahoganyMat = new THREE.MeshStandardMaterial({ color: 0x3b1d11, roughness: 0.28, metalness: 0.15 });
+    const leatherMat = new THREE.MeshStandardMaterial({ color: 0x1c2536, roughness: 0.45, metalness: 0.1 });
+
+    // Tıklanabilir Etkileşimli 3D Nesneler Listesi
+    const interactables = [];
+    function registerInteractable(mesh, label, actionFn) {
+      mesh.userData.interactLabel = label;
+      mesh.userData.interactAction = actionFn;
+      interactables.push(mesh);
+    }
+
+    // ============================================================================
+    // 4. MİMARİ İNŞA: ZEMİN, TAVAN, KORİDOR, ASANSÖR, ÖDÜL GALERİSİ, STÜDYO VE ODALAR
+    // ============================================================================
+    // Ana Zemin (44m x 48m Kompleks)
+    const mainFloor = new THREE.Mesh(new THREE.PlaneGeometry(46, 50), floorMat);
+    mainFloor.rotation.x = -Math.PI / 2;
+    mainFloor.receiveShadow = true;
+    scene.add(mainFloor);
+
+    // Kırmızı Halı (Asansör Lobisinden Görkemli Stüdyo Kapısına Kadar)
+    const carpetMat = new THREE.MeshStandardMaterial({ color: 0x8f0d0d, roughness: 0.75, metalness: 0.05 });
+    const carpet = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.02, 21.5), carpetMat);
+    carpet.position.set(0, 0.01, 8.5);
+    scene.add(carpet);
+    // Halı Altın Kenar Şeritleri
+    [-1.62, 1.62].forEach(xPos => {
+      const trim = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.025, 21.5), goldMat);
+      trim.position.set(xPos, 0.015, 8.5);
+      scene.add(trim);
+    });
+
+    // Tavan & Lineer Stüdyo Aydınlatmaları
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(46, 50), new THREE.MeshStandardMaterial({ color: 0x070b14, roughness: 0.7 }));
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.y = 5.2;
+    scene.add(ceiling);
+
+    // Ortam ve Stüdyo Işıkları
+    scene.add(new THREE.AmbientLight(0xdbeafe, 0.65));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 0.55);
+    hemiLight.position.set(0, 5, 0);
+    scene.add(hemiLight);
+
+    const lightZPositions = [16, 10, 4, -2, -9, -15];
+    lightZPositions.forEach(zPos => {
+      const pLight = new THREE.PointLight(0xfff4e0, 0.85, 18);
+      pLight.position.set(0, 4.7, zPos);
+      scene.add(pLight);
+      // Tavan LED armatürü
+      const ledBar = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.08, 0.25), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+      ledBar.position.set(0, 5.12, zPos);
+      scene.add(ledBar);
+    });
+
+    // Dış Çevre Duvarları
+    function addWall(w, h, d, x, y, z, mat = wallMat) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.position.set(x, y, z);
+      m.castShadow = true; m.receiveShadow = true;
+      scene.add(m);
+      return m;
+    }
+    addWall(46, 5.2, 0.4, 0, 2.6, 21.5);   // Güney duvar (Asansör arkası)
+    addWall(46, 5.2, 0.4, 0, 2.6, -22.5);  // Kuzey duvar (Ana Stüdyo arkası)
+    addWall(0.4, 5.2, 44, -22.5, 2.6, -0.5); // Batı dış duvar
+    addWall(0.4, 5.2, 44, 22.5, 2.6, -0.5);  // Doğu dış duvar
+
+    // ----------------------------------------------------------------------------
+    // BÖLÜM 1: PANORAMİK ÇELİK & CAM ASANSÖR (Z = +19.5)
+    // ----------------------------------------------------------------------------
+    const elevGroup = new THREE.Group();
+    elevGroup.position.set(0, 0, 19.6);
+    scene.add(elevGroup);
+
+    // Asansör dış mermer & altın çerçeve
+    const elevFrameL = new THREE.Mesh(new THREE.BoxGeometry(1.1, 4.4, 0.5), darkPanelMat);
+    elevFrameL.position.set(-2.1, 2.2, 0);
+    const elevFrameR = new THREE.Mesh(new THREE.BoxGeometry(1.1, 4.4, 0.5), darkPanelMat);
+    elevFrameR.position.set(2.1, 2.2, 0);
+    const elevHeader = new THREE.Mesh(new THREE.BoxGeometry(5.3, 1.0, 0.55), darkPanelMat);
+    elevHeader.position.set(0, 4.5, 0);
+    elevGroup.add(elevFrameL, elevFrameR, elevHeader);
+
+    // Asansör Üst Dijital Kat Tabelası
+    const elevSignTex = makeSignTexture("🛗 PANORAMİK ASANSÖR  |  KAT: G — LOBİ", "KAT SEÇMEK İÇİN ASANSÖRE VEYA ÇAĞRI PANELİNE TIKLAYIN", "#e51919", "#050914");
+    const elevSign = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 0.78), new THREE.MeshBasicMaterial({ map: elevSignTex }));
+    elevSign.position.set(0, 4.5, -0.29);
+    elevSign.rotation.y = Math.PI;
+    elevGroup.add(elevSign);
+
+    // Çift Kanatlı Hareketli Fırçalanmış Çelik Asansör Kapıları
+    const elevDoorLeft = new THREE.Mesh(new THREE.BoxGeometry(1.52, 3.8, 0.12), chromeMat);
+    elevDoorLeft.position.set(-0.77, 1.9, 0);
+    const elevDoorRight = new THREE.Mesh(new THREE.BoxGeometry(1.52, 3.8, 0.12), chromeMat);
+    elevDoorRight.position.set(0.77, 1.9, 0);
+    elevGroup.add(elevDoorLeft, elevDoorRight);
+
+    // Asansör Çağrı Paneli (Sağ Sütun Üzerinde)
+    const callPanel = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.65, 0.08), goldMat);
+    callPanel.position.set(-2.1, 1.45, -0.28);
+    elevGroup.add(callPanel);
+
+    [elevDoorLeft, elevDoorRight, callPanel].forEach(m => {
+      registerInteractable(m, "🛗 Asansörü Kullan (Kat Seç: Stüdyo / Ülke Temsilcileri / Misafir & Kahve / Makam Odası)", () => {
+        rideElevator("studio_door");
+      });
+    });
+
+    // Giriş Karşılama Danışma Bankosu (X = -5.2, Z = 15.5)
+    const recDesk = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.15, 1.1), darkPanelMat);
+    recDesk.position.set(-5.2, 0.58, 15.5);
+    scene.add(recDesk);
+    const recGoldTrim = new THREE.Mesh(new THREE.BoxGeometry(3.68, 0.12, 1.16), goldMat);
+    recGoldTrim.position.set(-5.2, 1.15, 15.5);
+    scene.add(recGoldTrim);
+    const recSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.4, 0.65),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("HABER GLOBAL DANIŞMA & PROTOKOL", "HOŞ GELDİNİZ • RÖPORTAJ KAYIT MASASI", "#e51919") })
+    );
+    recSign.position.set(-5.2, 0.58, 14.93);
+    recSign.rotation.y = Math.PI;
+    scene.add(recSign);
+    registerInteractable(recDesk, "🎙️ Danışma & Özel Röportaj Başvuru Formunu Aç", () => openInterviewModal());
+
+    // ----------------------------------------------------------------------------
+    // BÖLÜM 2: ANA KORİDOR & ÖDÜLLERİN SERGİLENDİĞİ ŞEREF GALERİSİ (Z = +12 .. +1)
+    // ----------------------------------------------------------------------------
+    // Koridor Yan Sütunları ve Ödül Vitrinleri (Sol ve Sağda 3'er Adet = 6 Prestij Ödülü)
+    const awardsData = [
+      {
+        x: -4.2, z: 11.2,
+        title: "🏆 Yılın En Güvenilir Küresel Haber Kanalı Altın Küre Ödülü",
+        year: "2026 Uluslararası Basın Zirvesi",
+        desc: "100'den fazla egemen devlette parlamenter demokrasi, ekonomi ve cephe gelişmelerini belgeli, tarafsız ve 24 saat sesli TV bültenleriyle yayınlayan Haber Global'e takdim edilen en üst düzey küresel televizyon ödülü."
+      },
+      {
+        x: 4.2, z: 11.2,
+        title: "🎙️ Kristal Mikrofon Başspiker & Ses Teknolojisi Ödülü",
+        year: "2026 Yayıncılık Akademisi",
+        desc: "Google Gemini AI Charon Başspiker seslendirme altyapısı ve 720p HD kesintisiz web televizyon stüdyosu ile uluslararası yayıncılıkta çığır açan ses-görüntü standardı ödülü."
+      },
+      {
+        x: -4.2, z: 7.0,
+        title: "🦅 Kafkas Türk Cumhuriyeti Milli Basın Üstün Hizmet Nişanı",
+        year: "Devlet Üstün Onur Madalyası",
+        desc: "Kafkas Türk Cumhuriyeti'nin uluslararası alandaki diplomatik saygınlığını, ekonomik kalkınmasını ve milli egemenliğini dünyaya duyuran Haber Global İmtiyaz Sahibi Hakan Karadağ'a tevcih edilen devlet nişanı."
+      },
+      {
+        x: 4.2, z: 7.0,
+        title: "🌐 17 Ülke Yüksek İstişare & Diplomasi Kürsüsü Büyük Ödülü",
+        year: "Parlamentum Küresel Konseyi",
+        desc: "Unione Milan, Manitoba, Sonora, Borneo, Johor, Orta Avrupa ve Kafkasya liderlerini aynı stratejik analiz masasında buluşturan ilk ve tek uluslararası medya konseyi ödülü."
+      },
+      {
+        x: -4.2, z: 2.8,
+        title: "⚖️ Bağımsız Araştırmacı Gazetecilik Altın Kalem Kupası",
+        year: "Uluslararası Şeffaflık Enstitüsü",
+        desc: "Milli hazinelerin korunması, taşra bölgelerinin sanayileşmesi, vergi adaleti ve kamu şeffaflığı adına yürütülen cesur ve belgeli araştırmacı gazetecilik dosyaları onur kupası."
+      },
+      {
+        x: 4.2, z: 2.8,
+        title: "⭐ Küresel Liderler Açık Kürsü & Zirve Haberciliği Plaketi",
+        year: "100 Devlet Diplomasi Vakfı",
+        desc: "Hiçbir ayrım gözetmeksizin tüm devlet başkanlarına, kabine bakanlarına ve parti genel başkanlarına ücretsiz özel TV yayını sağlayan Açık Kürsü vizyonu ödülü."
+      }
+    ];
+
+    const trophyMeshes = [];
+    awardsData.forEach((aw, idx) => {
+      const pedGroup = new THREE.Group();
+      pedGroup.position.set(aw.x, 0, aw.z);
+      scene.add(pedGroup);
+
+      // Mermer Kaide
+      const base = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.25, 1.1), new THREE.MeshStandardMaterial({ map: whiteMarbleTex, roughness: 0.2, metalness: 0.3 }));
+      base.position.y = 0.625;
+      pedGroup.add(base);
+
+      // Altın Plaket Çerçevesi
+      const plaque = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.95, 0.42),
+        new THREE.MeshBasicMaterial({ map: makeSignTexture(aw.title.slice(0, 32) + "...", aw.year, "#f5b914", "#080d18", 512, 180) })
+      );
+      plaque.position.set(0, 0.82, aw.x < 0 ? 0.56 : -0.56);
+      plaque.rotation.y = aw.x < 0 ? 0 : Math.PI;
+      pedGroup.add(plaque);
+
+      // Cam Koruma Vitrini
+      const glassCase = new THREE.Mesh(new THREE.BoxGeometry(0.96, 1.05, 0.96), glassMat);
+      glassCase.position.y = 1.78;
+      pedGroup.add(glassCase);
+
+      // 3D Altın Ödül Heykeli (Dönen Altın Küre + Yıldız Sütun)
+      const trophyGroup = new THREE.Group();
+      trophyGroup.position.y = 1.65;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.22, 0.42, 24), goldMat);
+      const globe = new THREE.Mesh(new THREE.OctahedronGeometry(0.24, 2), goldMat);
+      globe.position.y = 0.34;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.025, 16, 48), chromeMat);
+      ring.position.y = 0.34;
+      ring.rotation.x = Math.PI / 3;
+      trophyGroup.add(stem, globe, ring);
+      pedGroup.add(trophyGroup);
+      trophyMeshes.push(trophyGroup);
+
+      registerInteractable(glassCase, `${aw.title} — İncelemek İçin Tıklayın`, () => {
+        openInfoModal("🏆 HABER GLOBAL ÖDÜL & ŞEREF GALERİSİ", aw.title, aw.desc, `<div style="color:#f5b914;font-weight:800;font-size:13px;">📅 Verildiği Kurum / Yıl: ${aw.year}</div>`);
+      });
+      registerInteractable(base, `${aw.title} — İncelemek İçin Tıklayın`, () => {
+        openInfoModal("🏆 HABER GLOBAL ÖDÜL & ŞEREF GALERİSİ", aw.title, aw.desc, `<div style="color:#f5b914;font-weight:800;font-size:13px;">📅 Verildiği Kurum / Yıl: ${aw.year}</div>`);
+      });
+    });
+
+    // Koridor Üstü Şeref Galerisi Kemeri
+    const galleryBanner = new THREE.Mesh(
+      new THREE.PlaneGeometry(7.2, 0.85),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("🏆 ULUSLARARASI BASIN ÖDÜLLERİ & ŞEREF KORİDORU", "ÖDÜLLERİ İNCELEMEK İÇİN VİTRİNLERE TIKLAYIN", "#f5b914", "#09101f") })
+    );
+    galleryBanner.position.set(0, 4.35, 11.8);
+    scene.add(galleryBanner);
+
+    // ----------------------------------------------------------------------------
+    // BÖLÜM 3: ÜLKE TEMSİLCİLERİ ODASI / 17 ÜLKE DİPLOMASİ SALONU (SOL KANAT: X = -14, Z = +6)
+    // ----------------------------------------------------------------------------
+    // Koridordan Sol Odaya Geçiş Duvarları
+    addWall(0.35, 5.2, 7.5, -6.5, 2.6, 14.5);
+    addWall(0.35, 5.2, 7.5, -6.5, 2.6, 0.5);
+    // Oda Giriş Таbelası
+    const dipSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.2, 0.8),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("🌍 17 ÜLKE TEMSİLCİLERİ & DİPLOMASİ ODASI", "YÜKSEK İSTİŞARE VE STRATEJİK ANALİZ KONSEYİ", "#e51919") })
+    );
+    dipSign.position.set(-6.3, 4.1, 7.5);
+    dipSign.rotation.y = Math.PI / 2;
+    scene.add(dipSign);
+
+    // Dev Oval Maun Diplomasi Masası (X = -14.5, Z = 7.5)
+    const dipTable = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.0, 0.82, 40), mahoganyMat);
+    dipTable.scale.set(1.0, 1.0, 1.65);
+    dipTable.position.set(-14.5, 0.41, 7.5);
+    scene.add(dipTable);
+    const dipTableGold = new THREE.Mesh(new THREE.CylinderGeometry(3.44, 3.44, 0.06, 40), goldMat);
+    dipTableGold.scale.set(1.0, 1.0, 1.65);
+    dipTableGold.position.set(-14.5, 0.83, 7.5);
+    scene.add(dipTableGold);
+
+    // Ülke Temsilcileri Koltukları ve Bayrak İsimlikleri
+    const representatives = [
+      { country: "Kafkas Türk Cumhuriyeti", leader: "Hakan Karadağ", role: "Haber Global İmtiyaz Sahibi & DYP Genel Sekreteri", note: "Kafkasya, Anadolu ve küresel diplomasi merkez üssü." },
+      { country: "Unione Milan (İtalya)", leader: "Ofa", role: "Başbakan & Avrupa Ekonomisi Başanalisti", note: "Avrupa gümrük birliği, sanayi üretimi ve mali disiplin stratejileri." },
+      { country: "Manitoba (Kuzey Amerika)", leader: "wow", role: "Devlet Başkanı & Kıta Stratejisti", note: "Kuzey Amerika güvenlik mimarisi ve enerji koridorları." },
+      { country: "Sonora (Orta Amerika)", leader: "AntoniRayen", role: "Devlet Başkanı & Endüstriyel Kalkınma Uzmanı", note: "Düşük vergi, yüksek üretim ve serbest ticaret bölgeleri." },
+      { country: "Borneo (Asya-Pasifik)", leader: "EmilSinaga", role: "Devlet Başkanı & Jeopolitik Analist", note: "Pasifik deniz ticaret yolları ve stratejik hammadde güvenliği." },
+      { country: "Johor (Güneydoğu Asya)", leader: "carl", role: "Dışişleri Bakanı & Diplomasi Temsilcisi", note: "Boğazlar güvenliği ve uluslararası ticaret anlaşmaları." },
+      { country: "Orta Avrupa Konfederasyonu", leader: "oyvind419", role: "Parti Genel Başkanı & Parlamenter Analist", note: "Parlamenter demokrasi, koalisyon dengeleri ve yasama reformları." },
+      { country: "Doğu Anadolu & Kafkasya Masası", leader: "Schah", role: "Savunma & Cephe İstihbarat Uzmanı", note: "Sınır güvenliği, cephe lojistiği ve askeri caydırıcılık analizleri." }
+    ];
+
+    representatives.forEach((rep, i) => {
+      const angle = (i / representatives.length) * Math.PI * 2;
+      const cx = -14.5 + Math.cos(angle) * 4.1;
+      const cz = 7.5 + Math.sin(angle) * 6.2;
+
+      // Deri Makam Koltuğu
+      const chair = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.35, 0.85), leatherMat);
+      chair.position.set(cx, 0.68, cz);
+      chair.lookAt(-14.5, 0.68, 7.5);
+      scene.add(chair);
+
+      // Masa Üstü Altın İsimlik & Bayrak Plakası
+      const px = -14.5 + Math.cos(angle) * 2.55;
+      const pz = 7.5 + Math.sin(angle) * 4.1;
+      const nameplate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.75, 0.24, 0.12),
+        new THREE.MeshBasicMaterial({ map: makeSignTexture(rep.country, rep.leader, "#f5b914", "#071020", 512, 160) })
+      );
+      nameplate.position.set(px, 0.98, pz);
+      nameplate.lookAt(-14.5, 0.98, 7.5);
+      scene.add(nameplate);
+
+      const triggerFn = () => {
+        openInfoModal(
+          "🌍 17 ÜLKE YÜKSEK İSTİŞARE TEMSİLCİLİĞİ",
+          `${rep.country} — ${rep.leader}`,
+          `${rep.role}\n\nStratejik Dosya Odağı: ${rep.note}`,
+          `<button class="hud-btn gold" onclick="closeModals();openInterviewModal();">🎙️ Bu Temsilcilikle Ortak Zirve / Röportaj Talep Et</button>`
+        );
+      };
+      registerInteractable(chair, `🌍 ${rep.country} Temsilcisi (${rep.leader}) — Dosyayı Aç`, triggerFn);
+      registerInteractable(nameplate, `🌍 ${rep.country} Temsilcisi (${rep.leader}) — Dosyayı Aç`, triggerFn);
+    });
+
+    // Ülke Temsilcileri Odası Duvarında Dev Küresel Strateji Haritası Ekranı
+    const worldMapScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(8.5, 3.2),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("🌐 HABER GLOBAL 100 DEVLET DİPLOMASİ & STRATEJİ HARİTASI", "UNIONE MILAN • MANITOBA • SONORA • BORNEO • JOHOR • KAFKAS TÜRK CUMHURİYETİ", "#e51919", "#061226", 1024, 380) })
+    );
+    worldMapScreen.position.set(-22.2, 2.7, 7.5);
+    worldMapScreen.rotation.y = Math.PI / 2;
+    scene.add(worldMapScreen);
+
+    // ----------------------------------------------------------------------------
+    // BÖLÜM 4: VIP MİSAFİR ODASI, BEKLEME SALONU & KAHVE MAKİNESİ (SAĞ KANAT: X = +14, Z = +7.5)
+    // ----------------------------------------------------------------------------
+    addWall(0.35, 5.2, 7.5, 6.5, 2.6, 14.5);
+    addWall(0.35, 5.2, 7.5, 6.5, 2.6, 0.5);
+
+    const loungeSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.2, 0.8),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("🛋️ VIP MİSAFİR & BEKLEME SALONU", "İTALYAN BARİSTA KAHVE MAKİNESİ & DİNLENME ALANI", "#f5b914") })
+    );
+    loungeSign.position.set(6.3, 4.1, 7.5);
+    loungeSign.rotation.y = -Math.PI / 2;
+    scene.add(loungeSign);
+
+    // Lüks Bekleme Salonu Chesterfield Koltuklar & Mermer Sehpa (X = 13.5, Z = 7.5)
+    const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1.1, 0.95), new THREE.MeshStandardMaterial({ color: 0x5c1919, roughness: 0.4 }));
+    sofaBack.position.set(13.5, 0.55, 4.2);
+    const sofaLeft = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.1, 3.8), new THREE.MeshStandardMaterial({ color: 0x5c1919, roughness: 0.4 }));
+    sofaLeft.position.set(10.8, 0.55, 7.2);
+    const sofaRight = new THREE.Mesh(new THREE.BoxGeometry(0.95, 1.1, 3.8), new THREE.MeshStandardMaterial({ color: 0x5c1919, roughness: 0.4 }));
+    sofaRight.position.set(16.2, 0.55, 7.2);
+    const coffeeTable = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.48, 1.5), new THREE.MeshStandardMaterial({ map: whiteMarbleTex, roughness: 0.15 }));
+    coffeeTable.position.set(13.5, 0.24, 7.2);
+    scene.add(sofaBack, sofaLeft, sofaRight, coffeeTable);
+
+    // 3D PROFESYONEL İTALYAN ESPRESSO & TÜRK KAHVESİ BARİSTA MAKİNESİ (X = +19.8, Z = +7.5)
+    const baristaGroup = new THREE.Group();
+    baristaGroup.position.set(19.8, 0, 7.5);
+    scene.add(baristaGroup);
+
+    // Barista Mermer Tezgahı
+    const barCounter = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.1, 4.6), darkPanelMat);
+    barCounter.position.y = 0.55;
+    const barTop = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.08, 4.72), goldMat);
+    barTop.position.y = 1.12;
+    // Krom Espresso & Türk Kahvesi Makinesi Gövdesi
+    const machineBody = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.88, 1.85), chromeMat);
+    machineBody.position.set(0, 1.58, 0);
+    const machineRedHeader = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.22, 1.9), new THREE.MeshStandardMaterial({ color: 0xc81414, roughness: 0.2, metalness: 0.7 }));
+    machineRedHeader.position.set(0, 2.08, 0);
+    // Kahve Çekirdeği Hazneleri (Cam Silindirler)
+    const hopper1 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 0.38, 20), glassMat);
+    hopper1.position.set(0, 2.35, -0.45);
+    const hopper2 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 0.38, 20), glassMat);
+    hopper2.position.set(0, 2.35, 0.45);
+    // Buhar ve Espresso Başlıkları
+    const nozzle1 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.25, 16), goldMat);
+    nozzle1.position.set(-0.48, 1.48, -0.35);
+    const nozzle2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.25, 16), goldMat);
+    nozzle2.position.set(-0.48, 1.48, 0.35);
+
+    // Kahve Makinesi Üstü Işıklı Menü Panosu
+    const baristaSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.2, 1.15),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("☕ VIP BARİSTA & KAHVE MAKİNESİ", "TÜRK KAHVESİ • ESPRESSO • CAPPUCCINO • MOCHA • RİZE ÇAYI (TIKLAYIN)", "#f5b914", "#09101d") })
+    );
+    baristaSign.position.set(-0.2, 3.25, 0);
+    baristaSign.rotation.y = -Math.PI / 2;
+
+    baristaGroup.add(barCounter, barTop, machineBody, machineRedHeader, hopper1, hopper2, nozzle1, nozzle2, baristaSign);
+    [barCounter, machineBody, machineRedHeader, baristaSign].forEach(m => {
+      registerInteractable(m, "☕ VIP Kahve Makinesini Kullan — İstediğiniz Kahveyi Seçip İçin", () => openCoffeeModal());
+    });
+
+    // ----------------------------------------------------------------------------
+    // BÖLÜM 5: HABER STÜDYOSUNUN GÖRKEMLİ GERÇEKÇİ ÇİFT KANATLI KAPISI (Z = -1.8)
+    // ----------------------------------------------------------------------------
+    // Stüdyo Ayırıcı Duvarı (Ortada Görkemli Kapı Açıklığı: X = -2.4 .. +2.4)
+    addWall(10.0, 5.2, 0.45, -7.4, 2.6, -1.8);
+    addWall(10.0, 5.2, 0.45, 7.4, 2.6, -1.8);
+    addWall(4.8, 1.2, 0.48, 0, 4.6, -1.8, darkPanelMat);
+
+    // Altın-Mermer Görkemli Stüdyo Kapı Sövesi
+    const pillarL = new THREE.Mesh(new THREE.BoxGeometry(0.55, 4.2, 0.65), goldMat);
+    pillarL.position.set(-2.45, 2.1, -1.8);
+    const pillarR = new THREE.Mesh(new THREE.BoxGeometry(0.55, 4.2, 0.65), goldMat);
+    pillarR.position.set(2.45, 2.1, -1.8);
+    scene.add(pillarL, pillarR);
+
+    // Kırmızı Işıklı "ON AIR — HABER GLOBAL ANA HABER STÜDYOSU" Tabelası
+    const onAirSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(4.6, 0.85),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("🔴 ON AIR / CANLI YAYIN — ANA HABER STÜDYOSU", "KAPIDAN İÇERİ GİRMEK İÇİN KAPIYA VEYA BUTONA TIKLAYIN", "#e51919", "#070b14") })
+    );
+    onAirSign.position.set(0, 4.45, -1.52);
+    scene.add(onAirSign);
+
+    // Görkemli Çift Kanatlı Akustik Stüdyo Kapıları (Menteşe Pivot Grupları)
+    const studioDoorPivotL = new THREE.Group();
+    studioDoorPivotL.position.set(-2.2, 0, -1.8);
+    const studioDoorPivotR = new THREE.Group();
+    studioDoorPivotR.position.set(2.2, 0, -1.8);
+    scene.add(studioDoorPivotL, studioDoorPivotR);
+
+    const doorLeafMat = new THREE.MeshStandardMaterial({ color: 0x162035, roughness: 0.22, metalness: 0.65 });
+    const doorLeafL = new THREE.Mesh(new THREE.BoxGeometry(2.18, 3.9, 0.16), doorLeafMat);
+    doorLeafL.position.set(1.09, 1.95, 0);
+    const doorGoldFrameL = new THREE.Mesh(new THREE.BoxGeometry(1.85, 3.4, 0.18), goldMat);
+    doorGoldFrameL.position.set(1.09, 1.95, 0);
+    const doorHandleL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 16), chromeMat);
+    doorHandleL.position.set(1.98, 1.85, 0.14);
+    studioDoorPivotL.add(doorLeafL, doorGoldFrameL, doorHandleL);
+
+    const doorLeafR = new THREE.Mesh(new THREE.BoxGeometry(2.18, 3.9, 0.16), doorLeafMat);
+    doorLeafR.position.set(-1.09, 1.95, 0);
+    const doorGoldFrameR = new THREE.Mesh(new THREE.BoxGeometry(1.85, 3.4, 0.18), goldMat);
+    doorGoldFrameR.position.set(-1.09, 1.95, 0);
+    const doorHandleR = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.9, 16), chromeMat);
+    doorHandleR.position.set(-1.98, 1.85, 0.14);
+    studioDoorPivotR.add(doorLeafR, doorGoldFrameR, doorHandleR);
+
+    let studioDoorOpen = false;
+    let studioDoorAngle = 0;
+    function toggleStudioDoor(forceOpen) {
+      studioDoorOpen = (forceOpen !== undefined) ? forceOpen : !studioDoorOpen;
+      playDoorHydraulicSound();
+      showToast(studioDoorOpen
+        ? "🚪 Ana Haber Stüdyosunun görkemli kapıları açıldı! İçeri yürüyebilirsiniz."
+        : "🚪 Ana Haber Stüdyosu akustik kapıları kapatıldı.");
+    }
+
+    [doorLeafL, doorGoldFrameL, doorLeafR, doorGoldFrameR, onAirSign].forEach(m => {
+      registerInteractable(m, "🚪 Görkemli Ana Haber Stüdyosu Kapısını Aç / İçeri Gir", () => {
+        toggleStudioDoor(true);
+        player.targetX = 0;
+        player.targetZ = -8.2;
+        player.targetYaw = 0;
+      });
+    });
+
+    // ----------------------------------------------------------------------------
+    // BÖLÜM 6: CANLI ANA HABER STÜDYOSU (Z = -2.2 .. -22.0)
+    // ----------------------------------------------------------------------------
+    // Dev 3D Canlı LED Video Duvarı (THREE.VideoTexture — Gerçek Charon Sesli Yayın!)
+    const videoTexture = new THREE.VideoTexture(studioVideo);
+    videoTexture.minFilter = THREE.LinearFilter;
+    videoTexture.magFilter = THREE.LinearFilter;
+    videoTexture.format = THREE.RGBFormat;
+
+    const ledWallFrame = new THREE.Mesh(new THREE.BoxGeometry(12.6, 4.5, 0.35), goldMat);
+    ledWallFrame.position.set(0, 2.55, -19.8);
+    scene.add(ledWallFrame);
+
+    const ledWallScreen = new THREE.Mesh(
+      new THREE.PlaneGeometry(12.0, 4.1),
+      new THREE.MeshBasicMaterial({ map: videoTexture })
+    );
+    ledWallScreen.position.set(0, 2.55, -19.6);
+    scene.add(ledWallScreen);
+
+    registerInteractable(ledWallScreen, "📺 Canlı Haber Global TV Yayını (Sesi Aç/Kapat veya Sonraki Bültene Geç)", () => {
+      if (studioVideo.muted) {
+        toggleStudioAudio();
+      } else if (broadcastList.length > 1) {
+        const nextIdx = (broadcastList.findIndex(b => studioVideo.src.includes(b.file)) + 1) % broadcastList.length;
+        const nextItem = broadcastList[nextIdx];
+        if (nextItem && nextItem.file) {
+          studioVideo.src = RAW_VIDEO_BASE + nextItem.file;
+          studioVideo.play().catch(() => {});
+          showToast("📺 Stüdyo Dev Ekranında Bülten Değiştirildi: " + (nextItem.title || nextItem.file));
+        }
+      } else {
+        toggleStudioAudio();
+      }
+    });
+
+    // Kavisli Işıklı 3D Haber Global Spiker Masası (Anchor Desk — Z = -13.5)
+    const deskGroup = new THREE.Group();
+    deskGroup.position.set(0, 0, -13.5);
+    scene.add(deskGroup);
+
+    const deskPodium = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.4, 0.18, 48), darkPanelMat);
+    deskPodium.position.y = 0.09;
+    const deskBase = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.25, 0.95, 40, 1, false, -Math.PI * 0.65, Math.PI * 1.3), darkPanelMat);
+    deskBase.position.y = 0.56;
+    const deskRedStripe = new THREE.Mesh(new THREE.CylinderGeometry(2.22, 2.22, 0.16, 40, 1, false, -Math.PI * 0.65, Math.PI * 1.3), redGlowMat);
+    deskRedStripe.position.y = 0.62;
+    const deskTop = new THREE.Mesh(new THREE.CylinderGeometry(2.35, 2.35, 0.08, 40, 1, false, -Math.PI * 0.68, Math.PI * 1.36), goldMat);
+    deskTop.position.y = 1.06;
+
+    // Spiker Masası Ön HABER GLOBAL Tabelası
+    const deskFrontSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.8, 0.55),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("HABER GLOBAL", "ANA HABER MERKEZİ • CANLI", "#e51919", "#070c18", 512, 128) })
+    );
+    deskFrontSign.position.set(0, 0.62, 2.24);
+    deskGroup.add(deskPodium, deskBase, deskRedStripe, deskTop, deskFrontSign);
+
+    // 3 Adet Profesyonel Broadcast Stüdyo Kamerası (Z = -8.5)
+    [-3.2, 0, 3.2].forEach((camX, idx) => {
+      const camGroup = new THREE.Group();
+      camGroup.position.set(camX, 0, -8.5);
+      camGroup.lookAt(0, 1.35, -13.5);
+      const tripod = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.42, 1.45, 16), darkPanelMat);
+      tripod.position.y = 0.72;
+      const camBox = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.38, 0.75), chromeMat);
+      camBox.position.y = 1.55;
+      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.35, 20), darkPanelMat);
+      lens.rotation.x = Math.PI / 2;
+      lens.position.set(0, 1.55, 0.48);
+      const tallyLight = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.06), redGlowMat);
+      tallyLight.position.set(0, 1.78, 0.32);
+      camGroup.add(tripod, camBox, lens, tallyLight);
+      scene.add(camGroup);
+    });
+
+    // ----------------------------------------------------------------------------
+    // BÖLÜM 7: HAKAN KARADAĞ MAKAM ODASI & ÖZEL RÖPORTAJ BAŞVURU MASASI (X = -14.5, Z = -12.5)
+    // ----------------------------------------------------------------------------
+    const officeDesk = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.88, 1.6), mahoganyMat);
+    officeDesk.position.set(-14.5, 0.44, -12.5);
+    scene.add(officeDesk);
+    const officeGoldTrim = new THREE.Mesh(new THREE.BoxGeometry(3.48, 0.08, 1.68), goldMat);
+    officeGoldTrim.position.set(-14.5, 0.90, -12.5);
+    scene.add(officeGoldTrim);
+
+    const officeSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(5.6, 1.25),
+      new THREE.MeshBasicMaterial({ map: makeSignTexture("✒️ HAKAN KARADAĞ — İMTİYAZ SAHİBİ MAKAMI", "🎙️ ÖZEL RÖPORTAJ TALEBİ BIRAKMAK İÇİN MASAYA TIKLAYIN", "#f5b914", "#081020") })
+    );
+    officeSign.position.set(-14.5, 2.85, -15.2);
+    scene.add(officeSign);
+
+    [officeDesk, officeGoldTrim, officeSign].forEach(m => {
+      registerInteractable(m, "🎙️ Hakan Karadağ Makam Masası — Özel Röportaj Talebi Bırak", () => openInterviewModal());
+    });
+
+    // ============================================================================
+    // 5. ASANSÖR SİSTEMİ & ODA KONUMLARI
+    // ============================================================================
+    const ROOM_DESTINATIONS = {
+      lobby:       { x: 0,     z: 16.5,  yaw: 0,            floor: "KAT G", title: "🏛️ ZEMİN KAT — GİRİŞ LOBİSİ & PANORAMİK ASANSÖR", sub: "Danışma bankosu, panoramik çelik asansör ve protokol girişi" },
+      awards:      { x: 0,     z: 8.8,   yaw: 0,            floor: "KAT 1", title: "🏆 ŞEREF KORİDORU — ULUSLARARASI ÖDÜLLER GALERİSİ", sub: "6 vitrinli ödül kaidesine tıklayarak ödül sertifikalarını inceleyin" },
+      studio_door: { x: 0,     z: 1.8,   yaw: 0,            floor: "KAT 1", title: "🚪 ANA HABER STÜDYOSU GÖRKEMLİ AKUSTİK KAPISI", sub: "Çift kanatlı kapıya tıklayarak Canlı Ana Haber Stüdyosuna girin" },
+      studio:      { x: 0,     z: -7.5,  yaw: 0,            floor: "ON AIR", title: "📺 CANLI ANA HABER STÜDYOSU (CHARON SESLİ YAYIN)", sub: "Dev 3D LED ekranda canlı bülten oynuyor • Kameralar ve spiker masası" },
+      diplomacy:   { x: -10.2, z: 7.5,   yaw: Math.PI / 2,  floor: "KAT 2", title: "🌍 17 ÜLKE TEMSİLCİLERİ & DİPLOMASİ KONSEYİ ODASI", sub: "Ülke temsilcilerinin koltuklarına ve isimliklerine tıklayarak dosyaları açın" },
+      lounge:      { x: 14.5,  z: 7.5,   yaw: -Math.PI / 2, floor: "VIP",   title: "🛋️ VIP MİSAFİR, BEKLEME SALONU & BARİSTA KAHVE MAKİNESİ", sub: "Kahve makinesine tıklayarak istediğiniz kahveyi seçip için" },
+      office:      { x: -14.5, z: -8.8,  yaw: 0,            floor: "KAT 3", title: "✒️ HAKAN KARADAĞ MAKAM ODASI & RÖPORTAJ MERKEZİ", sub: "Makam masasına tıklayarak Özel Röportaj Talebinizi bırakın" }
+    };
+
+    function rideElevator(roomKey) {
+      const dest = ROOM_DESTINATIONS[roomKey];
+      if (!dest) return;
+      closeModals();
+      if (roomKey === "studio") toggleStudioDoor(true);
+
+      const overlay = document.getElementById("elevatorOverlay");
+      const led = document.getElementById("elevLedText");
+      const status = document.getElementById("elevStatusText");
+      led.textContent = `🛗 ▸ ${dest.floor}`;
+      status.textContent = `${dest.title} katına ulaşılıyor...`;
+      overlay.style.display = "flex";
+      playDoorHydraulicSound();
+
+      document.querySelectorAll(".floor-btn").forEach(b => b.classList.remove("active"));
+      const navBtn = document.getElementById("nav-" + roomKey.replace("_", "-"));
+      if (navBtn) navBtn.classList.add("active");
+
+      setTimeout(() => {
+        player.x = dest.x;
+        player.z = dest.z;
+        player.yaw = dest.yaw;
+        player.pitch = -0.02;
+        player.targetX = null;
+        player.targetZ = null;
+        document.getElementById("currentRoomTitle").textContent = dest.title;
+        document.getElementById("currentRoomSub").textContent = dest.sub;
+        playElevatorChime();
+        overlay.style.display = "none";
+      }, 650);
+    }
+
+    // ============================================================================
+    // 6. KAHVE MAKİNESİ & ÖZEL RÖPORTAJ TALEBİ FONKSİYONLARI
+    // ============================================================================
+    function closeModals() {
+      document.querySelectorAll(".modal-backdrop").forEach(el => el.style.display = "none");
+    }
+    function openInterviewModal() {
+      closeModals();
+      document.getElementById("interviewModal").style.display = "flex";
+    }
+    function openCoffeeModal() {
+      closeModals();
+      document.getElementById("coffeeModal").style.display = "flex";
+    }
+    function openInfoModal(tag, title, desc, extraHtml) {
+      closeModals();
+      document.getElementById("infoModalTag").textContent = tag;
+      document.getElementById("infoModalTitle").textContent = title;
+      document.getElementById("infoModalDesc").textContent = desc;
+      document.getElementById("infoModalExtra").innerHTML = extraHtml || "";
+      document.getElementById("infoModal").style.display = "flex";
+    }
+
+    function brewCoffee(name, desc) {
+      closeModals();
+      playCoffeeBrewSound();
+      player.inCup = true;
+      player.coffeeLevel = 100;
+      document.getElementById("coffeeHandTitle").textContent = "☕ " + name;
+      document.getElementById("coffeeHandDesc").textContent = desc;
+      document.getElementById("coffeeBarFill").style.width = "100%";
+      document.getElementById("coffeeHandHud").style.display = "flex";
+      showToast(`☕ Barista makinesinde "${name}" hazırlandı! Afiyet olsun.`);
+    }
+
+    function sipCoffee() {
+      if (player.coffeeLevel <= 0) {
+        showToast("☕ Fincanınız bitti! Kahve makinesinden yeni bir ikram alabilirsiniz.");
+        openCoffeeModal();
+        return;
+      }
+      player.coffeeLevel = Math.max(0, player.coffeeLevel - 25);
+      document.getElementById("coffeeBarFill").style.width = player.coffeeLevel + "%";
+      playElevatorChime();
+      showToast(player.coffeeLevel > 0
+        ? `☕ Kahvenizden sıcak bir yudum aldınız (%${player.coffeeLevel} kaldı).`
+        : "☕ Kahvenizi keyifle tamamladınız! Afiyet olsun.");
+    }
+
+    function submitInterviewRequest() {
+      const name = document.getElementById("reqName").value.trim() || "Devlet Temsilcisi";
+      const state = document.getElementById("reqState").value.trim() || "Bağımsız Heyet";
+      const cat = document.getElementById("reqCategory").value;
+      const msg = document.getElementById("reqMessage").value.trim();
+      if (!msg) {
+        showToast("⚠️ Lütfen röportajda işlenmesini istediğiniz konu veya demecinizi yazın.");
+        return;
+      }
+      const ticketNo = "HG-2026-" + Math.floor(1000 + Math.random() * 9000);
+      const record = {
+        ticketNo, name, state, category: cat, message: msg,
+        date: new Date().toISOString()
+      };
+      try {
+        const saved = JSON.parse(localStorage.getItem("hg_interview_requests") || "[]");
+        saved.unshift(record);
+        localStorage.setItem("hg_interview_requests", JSON.stringify(saved.slice(0, 50)));
+      } catch(e) {}
+
+      const formatted = `[HABER GLOBAL TV ÖZEL RÖPORTAJ TALEBİ — PROTOKOL NO: ${ticketNo}]\n` +
+                        `• Lider / Yetkili: ${name}\n` +
+                        `• Devlet / Parti: ${state}\n` +
+                        `• Kategori: ${cat}\n` +
+                        `• Resmi Demeç / Konu: ${msg}`;
+
+      document.getElementById("reqTicketHeader").textContent = `✅ Başvurunuz Kaydedildi (Protokol No: ${ticketNo})`;
+      document.getElementById("reqTicketBody").textContent = formatted;
+      document.getElementById("interviewResultBox").style.display = "block";
+      playElevatorChime();
+      showToast(`🎙️ Özel Röportaj Talebiniz (${ticketNo}) oluşturuldu!`);
+    }
+
+    function copyInterviewTicket() {
+      const txt = document.getElementById("reqTicketBody").textContent;
+      navigator.clipboard.writeText(txt).then(() => {
+        showToast("📋 Resmi röportaj başvuru metni panoya kopyalandı! Hakan Karadağ'a mesaj olarak gönderebilirsiniz.");
+      }).catch(() => {});
+    }
+
+    // ============================================================================
+    // 7. KLAVYE, FARE, TIKLAMA RAYCASTER VE ANİMASYON DÖNGÜSÜ
+    // ============================================================================
+    const keys = {};
+    window.addEventListener("keydown", e => {
+      if (document.querySelector(".modal-backdrop[style*='flex']")) return;
+      keys[e.code] = true;
+    });
+    window.addEventListener("keyup", e => { keys[e.code] = false; });
+
+    let isDragging = false, prevX = 0, prevY = 0, dragDist = 0;
+    canvas.addEventListener("mousedown", e => {
+      isDragging = true; prevX = e.clientX; prevY = e.clientY; dragDist = 0;
+    });
+    window.addEventListener("mousemove", e => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevX, dy = e.clientY - prevY;
+      dragDist += Math.abs(dx) + Math.abs(dy);
+      prevX = e.clientX; prevY = e.clientY;
+      player.yaw -= dx * 0.0042;
+      player.pitch = Math.max(-0.65, Math.min(0.65, player.pitch - dy * 0.0035));
+    });
+    window.addEventListener("mouseup", () => { isDragging = false; });
+
+    // Raycaster ile 3D Nesnelere Tıklama ve Hover İpucu
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    const promptBtn = document.getElementById("interactPromptBtn");
+    let hoveredObj = null;
+
+    canvas.addEventListener("mousemove", e => {
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(interactables, true);
+      if (hits.length > 0 && hits[0].distance < 16) {
+        let obj = hits[0].object;
+        while (obj && !obj.userData.interactLabel && obj.parent) obj = obj.parent;
+        if (obj && obj.userData.interactLabel) {
+          hoveredObj = obj;
+          promptBtn.textContent = obj.userData.interactLabel;
+          promptBtn.style.display = "block";
+          promptBtn.onclick = obj.userData.interactAction;
+          return;
+        }
+      }
+      hoveredObj = null;
+      promptBtn.style.display = "none";
+    });
+
+    canvas.addEventListener("click", e => {
+      if (dragDist > 10) return;
+      ensureAudioCtx();
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(interactables, true);
+      if (hits.length > 0 && hits[0].distance < 18) {
+        let obj = hits[0].object;
+        while (obj && !obj.userData.interactAction && obj.parent) obj = obj.parent;
+        if (obj && obj.userData.interactAction) {
+          obj.userData.interactAction();
+        }
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Ana Döngü
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.1);
+
+      // 1. Ödül Heykellerini Döndür
+      trophyMeshes.forEach(t => { t.rotation.y += dt * 0.85; });
+
+      // 2. Görkemli Stüdyo Kapısı Hidrolik Açılma/Kapanma Animasyonu
+      // Oyuncu kapıya 4m yaklaşırsa otomatik aç!
+      if (Math.abs(player.x) < 3.2 && Math.abs(player.z - (-1.8)) < 3.8 && !studioDoorOpen) {
+        toggleStudioDoor(true);
+      }
+      const targetAngle = studioDoorOpen ? Math.PI * 0.48 : 0;
+      studioDoorAngle += (targetAngle - studioDoorAngle) * Math.min(1, dt * 4.5);
+      studioDoorPivotL.rotation.y = studioDoorAngle;
+      studioDoorPivotR.rotation.y = -studioDoorAngle;
+
+      // 3. Klavye (WASD / Oklar) ile Yürüme
+      const moveSpeed = 6.2 * dt;
+      const forwardX = -Math.sin(player.yaw);
+      const forwardZ = -Math.cos(player.yaw);
+      const rightX = Math.cos(player.yaw);
+      const rightZ = -Math.sin(player.yaw);
+
+      let mx = 0, mz = 0;
+      if (keys["KeyW"] || keys["ArrowUp"])    { mx += forwardX; mz += forwardZ; }
+      if (keys["KeyS"] || keys["ArrowDown"])  { mx -= forwardX; mz -= forwardZ; }
+      if (keys["KeyA"] || keys["ArrowLeft"])  { mx -= rightX;   mz -= rightZ; }
+      if (keys["KeyD"] || keys["ArrowRight"]) { mx += rightX;   mz += rightZ; }
+
+      if (mx !== 0 || mz !== 0) {
+        player.targetX = null; player.targetZ = null;
+        const len = Math.hypot(mx, mz);
+        player.x = Math.max(-20.5, Math.min(20.5, player.x + (mx / len) * moveSpeed));
+        player.z = Math.max(-18.0, Math.min(18.5, player.z + (mz / len) * moveSpeed));
+      } else if (player.targetX !== null && player.targetZ !== null) {
+        const dx = player.targetX - player.x;
+        const dz = player.targetZ - player.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 0.25) {
+          player.targetX = null; player.targetZ = null;
+        } else {
+          player.x += (dx / dist) * moveSpeed;
+          player.z += (dz / dist) * moveSpeed;
+        }
+      }
+
+      // Kamerayı Güncelle
+      camera.position.set(player.x, player.y, player.z);
+      const lookDir = new THREE.Vector3(
+        -Math.sin(player.yaw) * Math.cos(player.pitch),
+        Math.sin(player.pitch),
+        -Math.cos(player.yaw) * Math.cos(player.pitch)
+      );
+      camera.lookAt(player.x + lookDir.x, player.y + lookDir.y, player.z + lookDir.z);
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // URL Parametreleriyle Otomatik Oda veya Röportaj Formu Açılışı
+    const initRoom = urlParams.get("room");
+    const initOpen = urlParams.get("open");
+    if (initRoom && ROOM_DESTINATIONS[initRoom]) {
+      rideElevator(initRoom);
+    }
+    if (initOpen === "interview") {
+      setTimeout(() => openInterviewModal(), 450);
+    } else if (initOpen === "coffee") {
+      setTimeout(() => openCoffeeModal(), 450);
+    }
+  </script>
+</body>
+</html>
