@@ -291,11 +291,30 @@
       <div class="brand-badge">HABER GLOBAL TV</div>
       <div class="brand-sub">ÖZEL WEB YAYIN STÜDYOSU &bull; 720p HD &bull; GEMINI AI CHARON SPİKER</div>
     </div>
-    <div class="live-pill">
-      <span class="live-dot"></span>
-      <span>HD VİDEO OYNATICI</span>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <a id="visit3dTopBtn" href="studio3d.html" style="background:linear-gradient(135deg,#f5b914 0%,#c98a00 100%);color:#070b12;font-weight:900;font-size:13px;padding:8px 16px;border-radius:8px;text-decoration:none;border:2px solid #ffe27a;box-shadow:0 0 18px rgba(245,185,20,0.45);display:inline-flex;align-items:center;gap:6px;">
+        🏢 3D KANAL BİNASINI ZİYARET ET
+      </a>
+      <a id="requestInterviewTopBtn" href="studio3d.html?room=office" style="background:#1a2438;color:#fff;font-weight:800;font-size:13px;padding:8px 14px;border-radius:8px;text-decoration:none;border:1px solid #f5b914;display:inline-flex;align-items:center;gap:6px;">
+        🎙️ RÖPORTAJ TALEBİ BIRAK
+      </a>
+      <div class="live-pill">
+        <span class="live-dot"></span>
+        <span>HD VİDEO OYNATICI</span>
+      </div>
     </div>
   </header>
+
+  <div style="width:100%;max-width:1060px;margin-bottom:16px;background:linear-gradient(90deg,rgba(229,25,25,0.18) 0%,rgba(245,185,20,0.16) 100%);border:1px solid rgba(245,185,20,0.45);border-radius:12px;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div style="font-size:14px;font-weight:700;color:#f8fafc;">
+      🏛️ <strong style="color:#f5b914;">YENİ: HABER GLOBAL 3D KANAL BİNASI AÇILDI!</strong> Asansör, Ödül Galerisi, 17 Ülke Temsilcilik Odası, VIP Misafir Kahve Salonu ve Canlı Stüdyoyu 3 Boyutlu gezin:
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <a id="visit3dBannerBtn" href="studio3d.html" class="ctrl-btn primary" style="text-decoration:none;background:linear-gradient(135deg,#e51919 0%,#9e0b0b 100%);border-color:#f5b914;">
+        🚪 3D KANAL BİNASINA GİR (CANLI STÜDYO & KAHVE SALONU)
+      </a>
+    </div>
+  </div>
 
   <main class="studio-card">
     <div class="video-header">
@@ -377,6 +396,12 @@
       if (!file) return;
       const cleanFile = file.replace(/[^a-zA-Z0-9._-]/g, "");
       video.src = RAW_BASE + cleanFile;
+      const v3Top = document.getElementById("visit3dTopBtn");
+      const v3Ban = document.getElementById("visit3dBannerBtn");
+      const reqTop = document.getElementById("requestInterviewTopBtn");
+      if (v3Top) v3Top.href = "studio3d.html?v=" + encodeURIComponent(cleanFile);
+      if (v3Ban) v3Ban.href = "studio3d.html?v=" + encodeURIComponent(cleanFile);
+      if (reqTop) reqTop.href = "studio3d.html?v=" + encodeURIComponent(cleanFile) + "&open=interview";
       if (title) headlineText.textContent = title;
       if (lang === "en") {
         langBadge.textContent = "🇬🇧 GLOBAL ENGLISH EDITION";
