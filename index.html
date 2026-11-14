@@ -395,7 +395,14 @@
     function loadVideoItem(file, title, lang) {
       if (!file) return;
       const cleanFile = file.replace(/[^a-zA-Z0-9._-]/g, "");
-      video.src = RAW_BASE + cleanFile;
+      const mediaUrl = RAW_BASE + cleanFile;
+      if (cleanFile.toLowerCase().endsWith(".gif")) {
+        video.poster = mediaUrl;
+        video.removeAttribute("src");
+      } else {
+        video.removeAttribute("poster");
+        video.src = mediaUrl;
+      }
       const v3Top = document.getElementById("visit3dTopBtn");
       const v3Ban = document.getElementById("visit3dBannerBtn");
       const reqTop = document.getElementById("requestInterviewTopBtn");
